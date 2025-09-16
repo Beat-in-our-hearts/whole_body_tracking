@@ -97,6 +97,8 @@ class CommandsCfg:
         velocity_range=VELOCITY_RANGE,
         joint_position_range=(-0.1, 0.1),
     )
+    
+    action_fluctuation_ratio = mdp.ActionFluctuationRatioCommandCfg()
 
 
 @configclass
