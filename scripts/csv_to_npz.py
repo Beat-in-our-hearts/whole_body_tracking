@@ -296,7 +296,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, joi
                 "body_lin_vel_w",
                 "body_ang_vel_w",
             ):
-                log[k] = np.stack(log[k], axis=0)[2:] # skip frame:2
+                log[k] = np.stack(log[k], axis=0)
 
             np.savez("/tmp/motion.npz", **log)
 

@@ -15,13 +15,12 @@ Data: 2025/09/16
 """
 import os
 import pickle
-import pandas as pd
 import numpy as np
 import argparse
 
 argparser = argparse.ArgumentParser()
-argparser.add_argument("--input_pkl", type=str, required=True, help="Path to input PKL file")
-argparser.add_argument("--output_path", type=str, required=True, help="Path to output CSV file")
+argparser.add_argument("--input", type=str, required=True, help="Path to input PKL file")
+argparser.add_argument("--output", type=str, required=True, help="Path to output CSV file")
 args = argparser.parse_args()
 
     
@@ -38,10 +37,9 @@ def pkl_to_csv(pkl_path, csv_path):
 
     # check dir of csv_path
     os.makedirs(os.path.dirname(csv_path), exist_ok=True)
-    df = pd.DataFrame(motion)
     csv_file_name = os.path.join(csv_path, os.path.basename(pkl_path).replace('.pkl', '.csv'))
-    df.to_csv(csv_file_name, index=False)
+    np.savetxt(csv_file_name, motion, delimiter=',')
     print(f"Converted {pkl_path} to {csv_file_name}")
     
 if __name__ == "__main__":
-    pkl_to_csv(args.input_pkl, args.output_path)
+    pkl_to_csv(args.input, args.output)
