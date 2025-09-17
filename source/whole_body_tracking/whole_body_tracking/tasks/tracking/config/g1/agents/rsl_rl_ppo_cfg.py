@@ -82,6 +82,7 @@ class G1FlatPPORunnerBaselineCfg(G1FlatPPORunnerCfg):
     def __post_init__(self):
         super().__post_init__()
         self.max_iterations = 10000
+        self.experiment_name = "g1_flat_smoothloc"
         
 @configclass
 class G1FlatPPORunnerCapsCfg(G1FlatPPORunnerBaselineCfg):
