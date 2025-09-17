@@ -49,39 +49,39 @@ class G1FlatLowFreqPPORunnerCfg(G1FlatPPORunnerCfg):
 @configclass
 class RslRlPpo_Smooth_AlgorithmCfg(RslRlPpoAlgorithmCfg):
     
-    smooth_alg: Literal["CAPS", "L2C2", "LipsNet++"] | None = None,
+    smooth_alg: Literal["CAPS", "L2C2", "LipsNet++"] | None = None
     """The smoothing algorithm to use. Either "CAPS", "L2C2", "LipsNet++", or None. Default is None."""
     
-    caps_lambda_t: float = 0.0,
+    caps_lambda_t: float = 0.0
     """The temporal smoothness coefficient for CAPS. Used in the loss term: 𝓛_T = ||π_θ(s_t) - π_θ(s_{t+1})|| """
     
-    caps_lambda_s: float = 0.0,
+    caps_lambda_s: float = 0.0
     """The spatial smoothness coefficient for CAPS. Used in the loss term: 𝓛_S = ||π_θ(s_t) - π_θ(s'_t)||, where s'_t is a perturbed state."""
     
-    caps_sigma: float = 0.0,
+    caps_sigma: float = 0.0
     """The standard deviation of the Gaussian noise used to perturb the state for spatial smoothness in CAPS."""
     
-    l2c2_lambda_pi: float = 0.0,
+    l2c2_lambda_pi: float = 0.0
     """The policy smoothness coefficient for L2C2. Used in the loss term: 𝓛_π = ||π_θ(s_t) - π_θ(\bar s_t)||, where 
     \bar s_t = s_t + (s_{t+1} - s_t)·u, where u ~ 𝒰(.)
     """
     
-    l2c2_lambda_v: float = 0.0,
+    l2c2_lambda_v: float = 0.0
     """The value function smoothness coefficient for L2C2. Used in the loss term: 𝓛_V = ||V_θ(s_t) - V_θ(\bar s_t)||, where
     \bar s_t = s_t + (s_{t+1} - s_t)·u, where u ~ 𝒰(.)
     """
     
-    lips_lambda_pi: float = 0.0,
+    lips_lambda_pi: float = 0.0
     """The policy Lipschitz continuity coefficient for LipsNet++. Used in the loss term: 𝓛_{Lips} = ||\nabla_{s_t} \pi_\theta(s_t)|| """
     
-    smooth_warmup: int = 0,
+    smooth_warmup: int = 0
     """The number of iterations to warm up the smoothing regularization. 𝓛_{smooth} *= min(1, step / smooth_warmup)"""
 
 @configclass
 class G1FlatPPORunnerBaselineCfg(G1FlatPPORunnerCfg):
     def __post_init__(self):
         super().__post_init__()
-        self.max_iterations = 10000
+        self.max_iterations = 5000
         self.experiment_name = "g1_flat_smoothloc"
         
 @configclass
