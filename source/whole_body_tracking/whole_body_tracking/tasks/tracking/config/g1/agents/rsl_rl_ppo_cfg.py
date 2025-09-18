@@ -41,3 +41,14 @@ class G1FlatLowFreqPPORunnerCfg(G1FlatPPORunnerCfg):
         self.num_steps_per_env = round(self.num_steps_per_env * LOW_FREQ_SCALE)
         self.algorithm.gamma = self.algorithm.gamma ** (1 / LOW_FREQ_SCALE)
         self.algorithm.lam = self.algorithm.lam ** (1 / LOW_FREQ_SCALE)
+
+
+@configclass
+class G1FlatBaselinePPORunnerCfg(G1FlatPPORunnerCfg):
+    max_iterations = 10000
+    experiment_name = "g1_flat_baseline"
+    
+@configclass
+class G1FlatContactPPORunnerCfg(G1FlatPPORunnerCfg):
+    max_iterations = 10000
+    experiment_name = "g1_flat_contact"

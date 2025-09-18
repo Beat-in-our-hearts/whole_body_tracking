@@ -80,3 +80,19 @@ def feet_contact_time(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, thresh
     last_contact_time = contact_sensor.data.last_contact_time[:, sensor_cfg.body_ids]
     reward = torch.sum((last_contact_time < threshold) * first_air, dim=-1)
     return reward
+
+def motion_contact_mask_reward(env: ManagerBasedRLEnv, command_name: str, sensor_cfg: SceneEntityCfg, threshold: float) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    
+    motion_contact_mask = command.motion_contact_mask
+    if motion_contact_mask is None:
+        raise ValueError("Contact data not found in the command.")
+    
+    ref_contact_mask = motion_contact_mask.float()  # [num_envs, num_contacts] bool
+    
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    cur_contact_forces = contact_sensor.data.contact_forces[:, sensor_cfg.body_ids, :]  # [num_envs, num_contacts, 3]
+    cur_contact_mask = (torch.norm(cur_contact_forces, dim=-1) > threshold).float()  # [num_envs, num_contacts]
+    
+    error_contact_mask = (cur_contact_mask - ref_contact_mask).abs()
+    return 1 - error_contact_mask.mean(dim=-1)  # [num_envs]

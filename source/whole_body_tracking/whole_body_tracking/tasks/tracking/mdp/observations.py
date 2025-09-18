@@ -81,3 +81,11 @@ def motion_anchor_ori_b(env: ManagerBasedEnv, command_name: str) -> torch.Tensor
     )
     mat = matrix_from_quat(ori)
     return mat[..., :2].reshape(mat.shape[0], -1)
+
+def motion_contact_mask(env: ManagerBasedEnv, command_name: str) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+    
+    motion_contact_mask = command.motion_contact_mask
+    if motion_contact_mask is None:
+        raise ValueError("Contact data not found in the command.")
+    return motion_contact_mask.view(env.num_envs, -1).float() # [num_envs, num_contacts]
