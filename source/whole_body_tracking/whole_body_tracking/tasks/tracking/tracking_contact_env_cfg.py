@@ -99,6 +99,7 @@ class CommandsCfg:
     )
     
     action_fluctuation_ratio = mdp.ActionFluctuationRatioCommandCfg()
+    error_contact = mdp.ErrorContactCommandCfg()
 
 
 @configclass

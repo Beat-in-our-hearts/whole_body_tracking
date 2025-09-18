@@ -91,7 +91,7 @@ def motion_contact_mask_reward(env: ManagerBasedRLEnv, command_name: str, sensor
     ref_contact_mask = motion_contact_mask.float()  # [num_envs, num_contacts] bool
     
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    cur_contact_forces = contact_sensor.data.contact_forces[:, sensor_cfg.body_ids, :]  # [num_envs, num_contacts, 3]
+    cur_contact_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :]  # [num_envs, num_contacts, 3]
     cur_contact_mask = (torch.norm(cur_contact_forces, dim=-1) > threshold).float()  # [num_envs, num_contacts]
     
     error_contact_mask = (cur_contact_mask - ref_contact_mask).abs()

@@ -9,7 +9,8 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from isaaclab.assets import Articulation
-from isaaclab.managers import CommandTerm, CommandTermCfg
+from isaaclab.sensors import ContactSensor
+from isaaclab.managers import CommandTerm, CommandTermCfg, SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.utils import configclass
@@ -461,7 +462,7 @@ class ActionFluctuationRatioCommand(NullCommand):
         
 @configclass
 class ActionFluctuationRatioCommandCfg(CommandTermCfg):
-    """Configuration for the episode success tracking command generator."""
+    """Configuration for the episode afr metrics"""
     
     class_type: type = ActionFluctuationRatioCommand
     
@@ -469,4 +470,59 @@ class ActionFluctuationRatioCommandCfg(CommandTermCfg):
     term_name: str = "joint_pos"
     
     def __post_init__(self):
+        self.resampling_time_range = None
+        
+        
+class ErrorContactCommand(NullCommand):
+    """Command generator that tracks error contact ratio."""
+    cfg: ErrorContactCommandCfg
+    
+    def __init__(self, cfg: ErrorContactCommandCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self.contact_sensor: ContactSensor = self._env.scene.sensors[cfg.sensor_cfg.name]
+        self.metrics["error_contact"] = torch.zeros(self.num_envs, device=self.device)
+        self.cfg.sensor_cfg.resolve(self._env.scene) # fixbug 
+    
+    def compute(self, dt: float):
+        self._update_metrics()
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+        # resolve the environment IDs
+        if env_ids is None:
+            env_ids = slice(None)
+            
+        # add logging metrics
+        extras = {}
+        for metric_name, metric_value in self.metrics.items():
+            # compute the mean metric value
+            extras[metric_name] = torch.mean(metric_value[env_ids]).item()
+            # reset the metric value
+            metric_value[env_ids] = 0.0
+        
+        return extras
+    
+    def _update_metrics(self):
+        cur_contact_forces = self.contact_sensor.data.net_forces_w[:, self.cfg.sensor_cfg.body_ids, :] # (N, 2, 3)
+        cur_contact_mask = torch.norm(cur_contact_forces, dim=-1) > self.cfg.threshold # (N, 2)
+        
+        motion_command: MotionCommand = self._env.command_manager.get_term(self.cfg.ref_command_name)
+        if motion_command.motion_contact_mask is None:
+            raise ValueError("Contact data not found in the command.")
+        ref_contact_mask = motion_command.motion_contact_mask # [num_envs, num_contacts]
+        
+        contact_mismatch = (cur_contact_mask != ref_contact_mask).float()  # [num_envs, num_contacts]
+        self.metrics["error_contact"] += contact_mismatch.mean(dim=-1)  # average over contact points
+        
+
+@configclass
+class ErrorContactCommandCfg(CommandTermCfg):
+    """Configuration for the episode error contact metrics"""
+    
+    class_type: type = ErrorContactCommand
+    sensor_cfg: SceneEntityCfg = SceneEntityCfg("contact_forces", body_names=["left_ankle_roll_link", "right_ankle_roll_link"])
+    ref_command_name: str = "motion"
+    threshold: float = 1.0
+    
+    def __post_init__(self):
+        # bug: commands.error_contact.resampling_time_range
         self.resampling_time_range = None
