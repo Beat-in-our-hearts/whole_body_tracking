@@ -57,8 +57,8 @@ class RslRlPpo_Smooth_AlgorithmCfg(RslRlPpoAlgorithmCfg):
     
     caps_lambda_s: float = 0.0
     """The spatial smoothness coefficient for CAPS. Used in the loss term: 𝓛_S = ||π_θ(s_t) - π_θ(s'_t)||, where s'_t is a perturbed state."""
-    
-    caps_sigma: float = 0.0
+
+    caps_sigma: tuple[Literal['add', 'scale'], float] = ('scale', 0.0)
     """The standard deviation of the Gaussian noise used to perturb the state for spatial smoothness in CAPS."""
     
     l2c2_lambda_pi: float = 0.0
@@ -105,7 +105,7 @@ class G1FlatPPORunnerCapsCfg(G1FlatPPORunnerBaselineCfg):
             smooth_alg="CAPS",
             caps_lambda_t=0.01,
             caps_lambda_s=0.01,
-            caps_sigma=0.05,
+            caps_sigma=('scale', 0.05),
         )
 
 @configclass

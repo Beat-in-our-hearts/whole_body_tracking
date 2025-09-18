@@ -99,7 +99,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             print(f"[INFO]: Using motion file from CLI: {args_cli.motion_file}")
             env_cfg.commands.motion.motion_file = args_cli.motion_file
 
-        art = next((a for a in wandb_run.used_artifacts() if a.type == "motions"), None)
+        art = next((a for a in wandb_run.used_artifacts() if a.type == "Motions"), None)
         if art is None:
             print("[WARN] No model artifact found in the run.")
         else:
