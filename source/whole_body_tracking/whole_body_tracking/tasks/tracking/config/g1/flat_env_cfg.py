@@ -29,7 +29,7 @@ class G1FlatEnvCfg(TrackingEnvCfg):
             "right_elbow_link",
             "right_wrist_yaw_link",
         ]
-
+        self.commands.motion.debug_vis = False
 
 @configclass
 class G1FlatWoStateEstimationEnvCfg(G1FlatEnvCfg):
