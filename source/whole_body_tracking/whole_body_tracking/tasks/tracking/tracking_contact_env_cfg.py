@@ -244,6 +244,15 @@ class RewardsCfg:
                 "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["left_ankle_roll_link", "right_ankle_roll_link"]),
                 "threshold": 1.0},
     )
+    # motion_feet_height = RewTerm(
+    #     func=mdp.motion_feet_height,
+    #     weight=0.5,
+    #     params={
+    #         "command_name": "motion",
+    #         "body_names": ["left_ankle_roll_link", "right_ankle_roll_link"],
+    #         "std": 0.1,
+    #     },
+    # )
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1e-1)
     joint_limit = RewTerm(
         func=mdp.joint_pos_limits,

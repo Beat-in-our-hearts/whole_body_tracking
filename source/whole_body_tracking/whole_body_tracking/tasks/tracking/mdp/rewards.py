@@ -96,3 +96,15 @@ def motion_contact_mask_reward(env: ManagerBasedRLEnv, command_name: str, sensor
     
     error_contact_mask = (cur_contact_mask - ref_contact_mask).abs()
     return 1 - error_contact_mask.mean(dim=-1)  # [num_envs]
+
+def motion_feet_height(env: ManagerBasedRLEnv, command_name: str, body_names: list[str], std: float) -> torch.Tensor:
+    command: MotionCommand = env.command_manager.get_term(command_name)
+
+    robot_body_ids = command.robot.find_bodies(body_names, preserve_order=True)[0]
+    cur_feet_heights = command.robot_body_pos_w[:, robot_body_ids, 2]
+    
+    motion_body_ids = [command.cfg.body_names.index(name) for name in body_names]
+    target_feet_heights = command.body_pos_w[:, motion_body_ids, 2]
+    error = cur_feet_heights - target_feet_heights
+
+    return torch.exp(-torch.square(error).mean(dim=-1) / std**2)
