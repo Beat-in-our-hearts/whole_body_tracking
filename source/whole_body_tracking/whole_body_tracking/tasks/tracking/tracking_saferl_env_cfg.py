@@ -262,8 +262,8 @@ class CostsCfg:
     """Cost terms for the MDP."""
 
     error_contact = CostTerm(
-        func=mdp.motion_contact_mask_reward,
-        weight=1.0,
+        func=mdp.motion_contact_mask_cost,
+        weight=0.25,
         params={"command_name": "motion", 
                 "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["left_ankle_roll_link", "right_ankle_roll_link"]),
                 "threshold": 1.0},
