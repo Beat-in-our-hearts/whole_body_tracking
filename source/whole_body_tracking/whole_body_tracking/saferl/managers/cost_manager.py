@@ -36,6 +36,16 @@ class CostTermCfg(ManagerTermBaseCfg):
     Note:
         If the weight is zero, the cost term is ignored.
     """
+    
+    def __post_init__(self):
+        super().__post_init__()
+        # validate parameters
+        if self.weight is MISSING:
+            raise ValueError("[CostTerm] Weight for the cost term cannot be MISSING.")
+        if self.func is MISSING:
+            raise ValueError("[CostTerm] Function for the cost term cannot be MISSING.")
+        if self.weight < 0.0:
+            raise ValueError("[CostTerm] Weight for the cost term cannot be negative(< 0.0).")
 
 class CostManager(ManagerBase):
     """Manager for computing cost signals for a given world.
