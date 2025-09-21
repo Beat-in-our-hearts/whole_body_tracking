@@ -24,12 +24,12 @@ class ManagerBasedSafeRLEnv(ManagerBasedRLEnv):
         super().__init__(cfg, render_mode=render_mode, **kwargs)
 
     def load_managers(self):
+        # call the parent class to load the managers for observations and actions.
+        super().load_managers()
+        
         # prepare the managers
         self.cost_manager:CostManager = CostManager(self.cfg.costs, self)
         print("[INFO] Cost Manager: ", self.cost_manager)
-        
-        # call the parent class to load the managers for observations and actions.
-        super().load_managers()
     
     def setup_manager_visualizers(self):
         """Creates live visualizers for manager terms."""
