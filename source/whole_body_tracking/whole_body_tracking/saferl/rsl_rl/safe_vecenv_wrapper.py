@@ -1,11 +1,11 @@
 import gymnasium as gym
 import torch
 
-from rsl_rl.env import SafeVecEnv
+from rsl_rl.env import SafeRLVecEnv
 
 from ..envs import ManagerBasedSafeRLEnv
 
-class RslSafeRlVecEnvWrapper(SafeVecEnv):
+class RslSafeRlVecEnvWrapper(SafeRLVecEnv):
     
     def __init__(self, env: ManagerBasedSafeRLEnv, clip_actions: float | None = None):
         # initialize the wrapper
