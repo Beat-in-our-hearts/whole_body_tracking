@@ -1,6 +1,7 @@
 from isaaclab.utils import configclass
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
 
+from whole_body_tracking.saferl.rsl_rl import RslSafeRlOnPolicyRunnerCfg, RslSafeRlPpoActorCriticCfg, RslSafeRlPpoAlgorithmCfg
 
 @configclass
 class G1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
@@ -52,3 +53,49 @@ class G1FlatBaselinePPORunnerCfg(G1FlatPPORunnerCfg):
 class G1FlatContactPPORunnerCfg(G1FlatPPORunnerCfg):
     max_iterations = 10000
     experiment_name = "g1_flat_contact"
+
+
+########################
+#    Safe RL Configs   #
+########################
+    
+@configclass
+class SafeRL_G1FlatPPORunnerCfg(RslSafeRlOnPolicyRunnerCfg):
+    num_steps_per_env = 24
+    max_iterations = 30000
+    save_interval = 500
+    experiment_name = "g1_flat_saferl"
+    empirical_normalization = True
+    policy = RslSafeRlPpoActorCriticCfg(
+        init_noise_std=1.0,
+        actor_hidden_dims=[512, 256, 128],
+        critic_hidden_dims=[512, 256, 128],
+        cost_critic_hidden_dims=[512, 256, 128],
+        activation="elu",
+    )
+    algorithm = RslSafeRlPpoAlgorithmCfg(
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.005,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+        # safe RL specific
+        cost_value_loss_coef=1.0,
+        constraint_threshold=0.0,
+        lagrangian_multiplier_init=1.0,
+        lagrangian_multiplier_lr=1e-5,
+        lagrangian_multiplier_max=100.0,
+        lagrangian_multiplier_min=0.0,
+    )
+    
+@configclass
+class G1FlatSafeRLPPORunnerCfg(SafeRL_G1FlatPPORunnerCfg):
+    max_iterations = 10000
+    experiment_name = "g1_flat_saferl"
