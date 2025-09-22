@@ -1,8 +1,7 @@
 import os
 
 from rsl_rl.env import VecEnv, SafeRLVecEnv
-from rsl_rl.runners.on_policy_runner import OnPolicyRunner
-from rsl_rl.runners.saferl_on_policy_runner import SafeRLOnPolicyRunner
+from rsl_rl.runners import OnPolicyRunner, SafeRLOnPolicyRunner
 
 from isaaclab_rl.rsl_rl import export_policy_as_onnx
 
