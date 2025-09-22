@@ -25,6 +25,7 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 parser.add_argument("--registry_name", type=str, required=True, help="The name of the wand registry.")
+parser.add_argument("--saferl", action="store_true", default=False, help="Use SafeRLOnPolicyRunner if set.")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -65,7 +66,10 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # Import extensions to set up environment tasks
 import whole_body_tracking.tasks  # noqa: F401
+from whole_body_tracking.saferl.envs import ManagerBasedSafeRLEnvCfg
+from whole_body_tracking.saferl.rsl_rl import RslSafeRlOnPolicyRunnerCfg, RslSafeRlVecEnvWrapper
 from whole_body_tracking.utils.my_on_policy_runner import MotionOnPolicyRunner as OnPolicyRunner
+from whole_body_tracking.utils.my_on_policy_runner import MotionSafeRLOnPolicyRunner as SafeRLOnPolicyRunner
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -74,7 +78,7 @@ torch.backends.cudnn.benchmark = False
 
 
 @hydra_task_config(args_cli.task, "rsl_rl_cfg_entry_point")
-def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlOnPolicyRunnerCfg):
+def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg | ManagerBasedSafeRLEnvCfg, agent_cfg: RslRlOnPolicyRunnerCfg | RslSafeRlOnPolicyRunnerCfg):
     """Train with RSL-RL agent."""
     # override configurations with non-hydra CLI arguments
     agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
@@ -128,13 +132,20 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if isinstance(env.unwrapped, DirectMARLEnv):
         env = multi_agent_to_single_agent(env)
 
-    # wrap around environment for rsl-rl
-    env = RslRlVecEnvWrapper(env)
-
-    # create runner from rsl-rl
-    runner = OnPolicyRunner(
-        env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device, registry_name=registry_name
-    )
+    if args_cli.saferl:
+        # wrap around environment for saferl
+        env = RslSafeRlVecEnvWrapper(env)
+        # create runner from saferl
+        runner = SafeRLOnPolicyRunner(
+            env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device, registry_name=registry_name
+        )
+    else:
+        # wrap around environment for rsl-rl
+        env = RslRlVecEnvWrapper(env)
+        # create runner from rsl-rl
+        runner = OnPolicyRunner(
+            env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device, registry_name=registry_name
+        )
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
     # save resume path before creating a new log_dir
