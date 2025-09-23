@@ -45,3 +45,10 @@ class G1FlatLowFreqEnvCfg(G1FlatEnvCfg):
         super().__post_init__()
         self.decimation = round(self.decimation / LOW_FREQ_SCALE)
         self.rewards.action_rate_l2.weight *= LOW_FREQ_SCALE
+
+@configclass
+class Deploy_G1FlatEnvCfg(G1FlatEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.policy.motion_anchor_pos_b = None
+        self.observations.policy.base_lin_vel = None
