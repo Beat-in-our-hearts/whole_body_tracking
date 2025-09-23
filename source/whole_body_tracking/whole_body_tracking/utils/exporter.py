@@ -39,6 +39,7 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
         self.body_quat_w = cmd.motion.body_quat_w.to("cpu")
         self.body_lin_vel_w = cmd.motion.body_lin_vel_w.to("cpu")
         self.body_ang_vel_w = cmd.motion.body_ang_vel_w.to("cpu")
+        self.contact_mask = cmd.motion._contact.to("cpu")
         self.time_step_total = self.joint_pos.shape[0]
 
     def forward(self, x, time_step):
@@ -51,6 +52,7 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
             self.body_quat_w[time_step_clamped],
             self.body_lin_vel_w[time_step_clamped],
             self.body_ang_vel_w[time_step_clamped],
+            self.contact_mask[time_step_clamped],
         )
 
     def export(self, path, filename):
@@ -73,6 +75,7 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
                 "body_quat_w",
                 "body_lin_vel_w",
                 "body_ang_vel_w",
+                "contact_mask",
             ],
             dynamic_axes={},
         )
