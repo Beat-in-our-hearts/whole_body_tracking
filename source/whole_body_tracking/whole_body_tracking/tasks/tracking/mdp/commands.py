@@ -44,7 +44,7 @@ class MotionLoader:
         self.time_step_total = self.joint_pos.shape[0]
         
         # for contact data
-        self._contact = torch.tensor(data["contact"], dtype=torch.bool, device=device) if "contact" in data else None
+        self.contact_mask = torch.tensor(data["contact"], dtype=torch.bool, device=device) if "contact" in data else None
 
     @property
     def body_pos_w(self) -> torch.Tensor:
@@ -149,7 +149,7 @@ class MotionCommand(CommandTerm):
     # for contact data
     @property
     def motion_contact_mask(self) -> torch.Tensor:
-        return self.motion._contact[self.time_steps] if self.motion._contact is not None else None
+        return self.motion.contact_mask[self.time_steps] if self.motion.contact_mask is not None else None
 
     @property
     def robot_joint_pos(self) -> torch.Tensor:
