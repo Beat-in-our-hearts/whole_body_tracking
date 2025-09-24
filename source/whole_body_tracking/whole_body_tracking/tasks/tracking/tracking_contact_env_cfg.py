@@ -238,8 +238,8 @@ class RewardsCfg:
     )
     # for contact data
     motion_contact_mask = RewTerm(
-        func=mdp.motion_contact_mask_reward,
-        weight=0.5,
+        func=mdp.motion_contact_mask_cost,
+        weight=-0.5,
         params={"command_name": "motion", 
                 "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["left_ankle_roll_link", "right_ankle_roll_link"]),
                 "threshold": 1.0},
