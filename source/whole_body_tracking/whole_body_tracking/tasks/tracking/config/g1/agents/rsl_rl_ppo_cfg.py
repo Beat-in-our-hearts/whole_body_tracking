@@ -99,3 +99,19 @@ class SafeRL_G1FlatPPORunnerCfg(RslSafeRlOnPolicyRunnerCfg):
 class G1FlatSafeRLPPORunnerCfg(SafeRL_G1FlatPPORunnerCfg):
     max_iterations = 10000
     experiment_name = "g1_flat_saferl"
+    
+
+#########################
+#     Deploy Configs    #
+#########################
+
+
+@configclass
+class Deploy_G1FlatPPORunnerCfg(G1FlatPPORunnerCfg):
+    max_iterations = 25000
+    experiment_name = "deploy_g1_flat"
+
+@configclass
+class Deploy_G1FlatSafeRLPPORunnerCfg(G1FlatSafeRLPPORunnerCfg):
+    max_iterations = 25000
+    experiment_name = "deploy_g1_flat_saferl"
