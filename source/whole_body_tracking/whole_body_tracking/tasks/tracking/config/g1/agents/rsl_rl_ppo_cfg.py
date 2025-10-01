@@ -88,7 +88,7 @@ class SafeRL_G1FlatPPORunnerCfg(RslSafeRlOnPolicyRunnerCfg):
         max_grad_norm=1.0,
         # safe RL specific
         cost_value_loss_coef=1.0,
-        constraint_threshold=0.005,
+        constraint_threshold=0.0025,
         lagrangian_multiplier_init=0.1,
         lagrangian_multiplier_lr=1e-4,
         lagrangian_multiplier_max=100.0,
@@ -99,3 +99,23 @@ class SafeRL_G1FlatPPORunnerCfg(RslSafeRlOnPolicyRunnerCfg):
 class G1FlatSafeRLPPORunnerCfg(SafeRL_G1FlatPPORunnerCfg):
     max_iterations = 10000
     experiment_name = "g1_flat_saferl"
+    
+
+#########################
+#     Deploy Configs    #
+#########################
+
+
+@configclass
+class Deploy_G1FlatPPORunnerCfg(G1FlatPPORunnerCfg):
+    max_iterations = 25000
+    experiment_name = "deploy_g1_flat"
+
+@configclass
+class Deploy_G1FlatSafeRLPPORunnerCfg(G1FlatSafeRLPPORunnerCfg):
+    max_iterations = 25000
+    experiment_name = "deploy_g1_flat_saferl"
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.algorithm.constraint_threshold = 0.001

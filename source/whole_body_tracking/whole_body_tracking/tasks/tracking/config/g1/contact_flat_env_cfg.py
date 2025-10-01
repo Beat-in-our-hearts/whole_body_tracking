@@ -56,3 +56,11 @@ class G1BaselineFlatEnvCfg(G1FlatEnvCfg):
         self.observations.policy.motion_contact_mask = None
         self.observations.critic.motion_contact_mask = None
         self.rewards.motion_contact_mask = None
+        
+     
+@configclass
+class Deploy_G1FlatEnvCfg(G1FlatEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.observations.policy.motion_anchor_pos_b = None
+        self.observations.policy.base_lin_vel = None
