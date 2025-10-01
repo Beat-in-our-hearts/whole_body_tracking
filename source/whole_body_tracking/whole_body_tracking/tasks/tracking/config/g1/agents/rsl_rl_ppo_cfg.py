@@ -88,7 +88,7 @@ class SafeRL_G1FlatPPORunnerCfg(RslSafeRlOnPolicyRunnerCfg):
         max_grad_norm=1.0,
         # safe RL specific
         cost_value_loss_coef=1.0,
-        constraint_threshold=0.001,
+        constraint_threshold=0.0025,
         lagrangian_multiplier_init=0.1,
         lagrangian_multiplier_lr=1e-4,
         lagrangian_multiplier_max=100.0,
