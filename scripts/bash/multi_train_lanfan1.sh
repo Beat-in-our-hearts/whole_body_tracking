@@ -38,7 +38,7 @@ for task in "${task_array[@]}"; do
             CUDA_VISIBLE_DEVICES=$cuda_device python scripts/rsl_rl/train.py --task=Tracking-Baseline-Flat-G1-v0 --registry_name seu-ai-org/wandb-registry-motions/${task}_withcontact --headless --logger wandb --log_project_name $wandb_project_name --run_name ${task}_baseline_seed${seed} --seed $seed &
             ;;
         saferl)
-            CUDA_VISIBLE_DEVICES=$cuda_device python scripts/rsl_rl/train.py --task=Tracking-SafeRL-Flat-G1-v0 --registry_name seu-ai-org/wandb-registry-motions/${task}_withcontact --headless --logger wandb --log_project_name $wandb_project_name --run_name ${task}_saferl_seed${seed} --seed $seed --saferl &
+            CUDA_VISIBLE_DEVICES=$cuda_device python scripts/rsl_rl/train.py --task=Tracking-SafeRL-Flat-G1-Lafan1-v0 --registry_name seu-ai-org/wandb-registry-motions/${task}_withcontact --headless --logger wandb --log_project_name $wandb_project_name --run_name ${task}_saferl_seed${seed} --seed $seed --saferl &
             ;;
         *)
             echo "type must be baseline/saferl"; exit 1

@@ -100,6 +100,14 @@ class G1FlatSafeRLPPORunnerCfg(SafeRL_G1FlatPPORunnerCfg):
     max_iterations = 10000
     experiment_name = "g1_flat_saferl"
     
+@configclass
+class G1FlatSafeRLPPORunnerCfgV2(SafeRL_G1FlatPPORunnerCfg):
+    max_iterations = 10000
+    experiment_name = "g1_flat_saferl"
+    def __post_init__(self):
+        super().__post_init__()
+        self.algorithm.constraint_threshold = 0.01
+    
 
 #########################
 #     Deploy Configs    #
