@@ -45,3 +45,9 @@ artifacts/
 
 datasets
 temp
+logs
+wandb
+
+**/contact/images/
+**/contact/temp_images/
+**/contact/videos/
