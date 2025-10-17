@@ -115,7 +115,7 @@ def add_sphere_markers_to_xml(xml_path, foot_names):
             'name': f'sphere_marker_{idx}',
             'type': 'sphere',
             'size': '0.05',
-            'rgba': '1 0 0 1',  
+            'rgba': '0 0 1 1',  
             'contype': '0',  
             'conaffinity': '0',
             'group': '1' 
@@ -169,9 +169,10 @@ def csv_auto_annotate_contact(xml_path, csv_path, save_dir, npy_dir, temp_image_
             marker_base_rgba.append(mj_model.geom_rgba[geom_id].copy())
 
         array_foot_z = []
+        array_contact_state = []
         images = []
         
-        foot_base_height = 0
+        foot_base_height = 0.0
         contact_flag = np.ones(len(foot_names), dtype=np.int32)
         
         with mujoco.Renderer(mj_model, width=1920, height=1080) as renderer:
@@ -182,8 +183,12 @@ def csv_auto_annotate_contact(xml_path, csv_path, save_dir, npy_dir, temp_image_
                 foot_pos = np.array([mj_data.body(name).xpos for name in foot_names])
                 if i == 0:
                     foot_base_height = foot_pos[:, 2].min()
-                else:
-                    contact_flag = (foot_pos[:, 2] < foot_base_height + height_threshold).astype(np.int32)
+                
+                low_thr = foot_base_height + height_threshold
+                high_thr = foot_base_height + 2 * height_threshold
+                contact_state = np.full(len(foot_names), 1, dtype=np.int32)
+                contact_state[foot_pos[:, 2] < low_thr] = 0   # 接触
+                contact_state[foot_pos[:, 2] > high_thr] = 2  # 悬空
                 
                 for idx, pos in enumerate(foot_pos):
                     mocap_id = mocap_body_indices[idx]
@@ -191,20 +196,24 @@ def csv_auto_annotate_contact(xml_path, csv_path, save_dir, npy_dir, temp_image_
                     mj_data.mocap_quat[mocap_id] = [1, 0, 0, 0]
 
                     geom_id = marker_geom_indices[idx]
-                    if contact_flag[idx]:
-                        mj_model.geom_rgba[geom_id] = [0.0, 0.0, 1.0, 1.0]
+                    if contact_state[idx] == 0:
+                        mj_model.geom_rgba[geom_id] = [1.0, 0.0, 0.0, 1.0]      # 红色
+                    elif contact_state[idx] == 1:
+                        mj_model.geom_rgba[geom_id] = [1.0, 0.6, 0.0, 1.0]      # 临界橙色
                     else:
-                        mj_model.geom_rgba[geom_id] = marker_base_rgba[idx]
+                        mj_model.geom_rgba[geom_id] = marker_base_rgba[idx]     # 原色
                 
                 mujoco.mj_forward(mj_model, mj_data)
                     
                 if save_video:     
                     renderer.update_scene(mj_data)
                     image = renderer.render()
+                    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
                     images.append(image)
                     
-                foot_z = foot_pos[:, 2]  # (2,)
+                foot_z = foot_pos[:, 2]
                 array_foot_z.append(foot_z)
+                array_contact_state.append(contact_state.copy())
                 
         np_foot_z = np.array(array_foot_z)  # (n_frames, 2)
 
@@ -213,7 +222,7 @@ def csv_auto_annotate_contact(xml_path, csv_path, save_dir, npy_dir, temp_image_
         foot_base_height = first_10_frame_foot_z.min()
 
         # determine contact
-        contact_labels = (np_foot_z < foot_base_height+height_threshold).astype(np.int32)  # (n_frames, 2), 1 for contact, 0 for no contact
+        contact_labels = np.array(array_contact_state, dtype=np.int32)
         np.save(os.path.join(npy_dir, basename + ".npy"), contact_labels)
         print(f"[INFO] Saved contact labels to {os.path.join(npy_dir, basename + '.npy')}")
 
@@ -292,16 +301,17 @@ def test_csv_auto_annotate_contact_v2():
     all_csv_file.sort()
     print(f"Found {len(all_csv_file)} CSV files")
     
-    for csv_path in all_csv_file:
-        csv_auto_annotate_contact(
-            xml_path="/home/ac/Desktop/2025/project_3/GMR/assets/unitree_g1/g1_mocap_29dof.xml",
-            csv_path=csv_path,
-            npy_dir="../../datasets/g1_contact",
-            save_dir="./videos/vis",
-            foot_names=["left_toe_link", "right_toe_link"],
-            height_threshold=0.01,
-            save_video=True
-        )
+    csv_path = all_csv_file[0]
+    # for csv_path in all_csv_file:
+    csv_auto_annotate_contact(
+        xml_path="/home/ac/Desktop/2025/project_3/GMR/assets/unitree_g1/g1_mocap_29dof.xml",
+        csv_path=csv_path,
+        npy_dir="../../datasets/g1_contact",
+        save_dir="./videos/vis_contact",
+        foot_names=["left_toe_link", "right_toe_link"],
+        height_threshold=0.01,
+        save_video=True
+    )
     print("Auto annotation done!")
     
 if __name__ == "__main__":
