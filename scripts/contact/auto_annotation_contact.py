@@ -6,6 +6,7 @@ import os
 import tqdm
 import cv2
 import glob
+from concurrent.futures import ThreadPoolExecutor
 
 def cvs2video(xml_path, csv_path, save_dir, temp_image_dir="temp_images"): 
     """
@@ -242,7 +243,27 @@ def csv_auto_annotate_contact(xml_path, csv_path, save_dir, npy_dir, temp_image_
             os.remove(temp_xml_path)
             print(f"[INFO] Cleaned up temporary XML file: {temp_xml_path}")
 
-def mj_csv_auto_annotate_contact(xml_path: str, csv_path: str, npy_dir: str, save_dir: str, temp_image_dir: str, foot_names: list[str], thresh: list[float], save_video: bool=False):
+def mj_csv_auto_annotate_contact(xml_path: str, 
+                                 csv_path: str, 
+                                 npy_dir: str, 
+                                 save_dir: str, 
+                                 temp_image_dir: str, 
+                                 foot_names: list[str], 
+                                 thresh: list[float], 
+                                 save_video: bool=False, 
+                                 video_wh:list[float]=[1920, 1080]):
+
+    def _write_contact_frame(frame_dir: str, idx: int, image, labels) -> None:
+        frame = image.copy()
+        text = "[" + ", ".join(map(str, labels)) + "]"
+        cv2.putText(frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.imwrite(os.path.join(frame_dir, f"image_{idx:04d}.png"), frame)
+
+
+    def save_contact_frames_simple(images, contact_labels, frame_dir: str) -> None:
+        for idx, image in enumerate(images):
+            _write_contact_frame(frame_dir, idx, image, contact_labels[idx])
+
     def _add_contact_geom(xml_path: str, foot_link_names=list[str]) -> str | None:
         from xml.etree import ElementTree as ET
         import tempfile
@@ -320,8 +341,19 @@ def mj_csv_auto_annotate_contact(xml_path: str, csv_path: str, npy_dir: str, sav
         distance = {name: [] for name in foot_names}
         contact_info = {name: [] for name in foot_names}
         images = []
-        
-        with mujoco.Renderer(mj_model, width=1920, height=1080) as renderer:
+
+        with mujoco.Renderer(mj_model, width=video_wh[0], height=video_wh[1]) as renderer:
+            cam = mujoco.MjvCamera()
+            mujoco.mjv_defaultCamera(cam)
+            track_id = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, "pelvis")
+            cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+            cam.trackbodyid = track_id
+            cam.fixedcamid = -1
+            cam.distance = 3.0
+            cam.azimuth = 120.0
+            cam.elevation = -25.0
+            cam.lookat = np.array([0.0, 0.0, 0.3])
+            
             for i in tqdm.trange(np_qpos.shape[0]):
                 mj_data.qpos[:] = np_qpos[i]
                 mujoco.mj_forward(mj_model, mj_data)
@@ -334,16 +366,14 @@ def mj_csv_auto_annotate_contact(xml_path: str, csv_path: str, npy_dir: str, sav
                     dist = mujoco.mj_geomDistance(mj_model, mj_data, floor_geom_id, gid, 1.0, fromto)
                     distance[name].append(dist)
         
-                    if i == 0:
-                        base_foot_dist[name] = dist
+                    if i <= 50:
+                        base_foot_dist[name] = max(base_foot_dist[name], dist)
+                    if dist <= base_foot_dist[name] + thresh[0]:
                         contact_info[name].append(1)
-                    else:
-                        if dist <= base_foot_dist[name] + thresh[0]:
-                            contact_info[name].append(1)
-                        elif dist >= base_foot_dist[name] + thresh[1]:
-                            contact_info[name].append(0)
-                        else: # middle status: 2
-                            contact_info[name].append(2)
+                    elif dist >= base_foot_dist[name] + thresh[1]:
+                        contact_info[name].append(0)
+                    else: # middle status: 2
+                        contact_info[name].append(2)
 
                 # markers
                 for name, pos in zip(foot_names, foot_pos):
@@ -363,7 +393,7 @@ def mj_csv_auto_annotate_contact(xml_path: str, csv_path: str, npy_dir: str, sav
                 mujoco.mj_forward(mj_model, mj_data)
                 
                 if save_video:     
-                    renderer.update_scene(mj_data)
+                    renderer.update_scene(mj_data, camera=cam)
                     image = renderer.render()
                     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
                     images.append(image)
@@ -375,7 +405,7 @@ def mj_csv_auto_annotate_contact(xml_path: str, csv_path: str, npy_dir: str, sav
         print(f"[INFO] Saved contact labels to {os.path.join(npy_dir, basename + '.npy')}")
         
         # plot distance
-        plt.figure(figsize=(20, 5), dpi=300)
+        plt.figure(figsize=(40, 5), dpi=300)
         for name, dists in distance.items():
             plt.plot(dists, label=name, linewidth=1)
         plt.legend()
@@ -385,11 +415,15 @@ def mj_csv_auto_annotate_contact(xml_path: str, csv_path: str, npy_dir: str, sav
         plt.close()
     
         if save_video:
-            for i in tqdm.trange(len(images)):
-                text = "[" + ", ".join([str(contact_labels[i, idx]) for idx in range(contact_labels.shape[1])]) + "]"
-                cv2.putText(images[i], text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                cv2.imwrite(os.path.join(temp_image_dir, basename, f"image_{i:04d}.png"), images[i])
-            print(f"[INFO] Saved {len(images)} images to {os.path.join(temp_image_dir, basename)}")
+            frame_dir = os.path.join(temp_image_dir, basename)
+            max_workers = min(8, len(images))
+
+            def _save(idx: int) -> None:
+                _write_contact_frame(frame_dir, idx, images[idx], contact_labels[idx])
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                list(tqdm.tqdm(executor.map(_save, range(len(images))), total=len(images), desc="Annotating frames", leave=False))
+            print(f"[INFO] Saved {len(images)} images to {frame_dir}")
             
             os.system(f"ffmpeg -framerate 30 -i {os.path.join(temp_image_dir, basename)}/image_%04d.png -c:v libx264 -pix_fmt yuv420p {os.path.join(save_dir, basename + '.mp4')}")
             print(f"[INFO] Saved video to {os.path.join(save_dir, basename + '.mp4')}")
@@ -450,7 +484,7 @@ def test_csv_auto_annotate_contact():
             save_dir="./videos/contact",
             foot_names=["left_toe_link", "right_toe_link"],
             height_threshold=0.01,
-            save_video=True
+            save_video=True,
         )
     print("Auto annotation done!")
     
@@ -486,11 +520,12 @@ def test_mj_csv_auto_annotate_contact():
             xml_path="/home/ac/Desktop/2025/project_3/GMR/assets/unitree_g1/g1_mocap_29dof.xml",
             csv_path=csv_path,
             npy_dir="../../datasets/g1_contact_mj",
-            save_dir="./videos/vis",
+            save_dir="./videos/vis/tmp",
             temp_image_dir="./temp_images/mj_vis_contact",
             foot_names=["left_ankle_roll_link", "right_ankle_roll_link"],
-            thresh=[0.003, 0.015],
-            save_video=True
+            thresh=[0.003, 0.02],
+            save_video=True,
+            video_wh=[640, 480],
         )
     print("MJ Auto annotation done!")    
 
