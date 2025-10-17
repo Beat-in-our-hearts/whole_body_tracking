@@ -49,7 +49,6 @@ def cvs2video(xml_path, csv_path, save_dir, temp_image_dir="temp_images"):
     os.system(f"ffmpeg -framerate 30 -i {os.path.join(temp_image_dir, basename)}/image_%04d.png -c:v libx264 -pix_fmt yuv420p {os.path.join(save_dir, basename + '.mp4')}")
     print(f"[INFO] Saved video to {os.path.join(save_dir, basename + '.mp4')}")
 
- 
 def cvs_recorder_foot(xml_path, csv_path, save_dir, foot_names=["left_ankle_roll_link", "right_ankle_roll_link"]): 
     """
     Convert csv mocap data to video
@@ -95,38 +94,6 @@ def cvs_recorder_foot(xml_path, csv_path, save_dir, foot_names=["left_ankle_roll
         plt.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
         print(f"[INFO] Saved foot z plot to {save_path}")
     plt.close()
-    
-def add_sphere_markers_to_xml(xml_path, foot_names):
-    from xml.etree import ElementTree as ET
-    
-    tree = ET.parse(xml_path)
-    root = tree.getroot()
-    
-    worldbody = root.find('worldbody')
-    if worldbody is None:
-        worldbody = ET.SubElement(root, 'worldbody')
-    
-    for idx, foot_name in enumerate(foot_names):
-        body = ET.SubElement(worldbody, 'body', {
-            'name': f"marker_{foot_name}",
-            'mocap': 'true'  # 关键：设置为 mocap body
-        })
-        geom = ET.SubElement(body, 'geom', {
-            'name': f'sphere_marker_{idx}',
-            'type': 'sphere',
-            'size': '0.05',
-            'rgba': '0 0 1 1',  
-            'contype': '0',  
-            'conaffinity': '0',
-            'group': '1' 
-        })
-        
-    xml_dir = os.path.dirname(xml_path)
-    temp_xml_path = os.path.join(xml_dir, "temp_with_markers.xml")
-    tree.write(temp_xml_path, encoding='utf-8', xml_declaration=True)
-    
-    return temp_xml_path
-
 
 def csv_auto_annotate_contact(xml_path, csv_path, save_dir, npy_dir, temp_image_dir="temp_images", foot_names=["left_toe_link", "right_toe_link"], height_threshold=0.01, save_video=False):
     """
@@ -136,6 +103,38 @@ def csv_auto_annotate_contact(xml_path, csv_path, save_dir, npy_dir, temp_image_
         save_dir (str): dir to save video, example `./videos`
         height_threshold (float): height threshold to determine contact
     """
+    
+    def add_sphere_markers_to_xml(xml_path, foot_names):
+        from xml.etree import ElementTree as ET
+        
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        
+        worldbody = root.find('worldbody')
+        if worldbody is None:
+            worldbody = ET.SubElement(root, 'worldbody')
+        
+        for idx, foot_name in enumerate(foot_names):
+            body = ET.SubElement(worldbody, 'body', {
+                'name': f"marker_{foot_name}",
+                'mocap': 'true'  # 关键：设置为 mocap body
+            })
+            geom = ET.SubElement(body, 'geom', {
+                'name': f'sphere_marker_{idx}',
+                'type': 'sphere',
+                'size': '0.05',
+                'rgba': '0 0 1 1',  
+                'contype': '0',  
+                'conaffinity': '0',
+                'group': '1' 
+            })
+            
+        xml_dir = os.path.dirname(xml_path)
+        temp_xml_path = os.path.join(xml_dir, "temp_with_markers.xml")
+        tree.write(temp_xml_path, encoding='utf-8', xml_declaration=True)
+        
+        return temp_xml_path
+
     # basename, example `dance1_subject1`
     basename = os.path.basename(csv_path).split(".")[0]
     if save_dir: os.makedirs(save_dir, exist_ok=True)
@@ -243,6 +242,167 @@ def csv_auto_annotate_contact(xml_path, csv_path, save_dir, npy_dir, temp_image_
             os.remove(temp_xml_path)
             print(f"[INFO] Cleaned up temporary XML file: {temp_xml_path}")
 
+def mj_csv_auto_annotate_contact(xml_path: str, csv_path: str, npy_dir: str, save_dir: str, temp_image_dir: str, foot_names: list[str], thresh: list[float], save_video: bool=False):
+    def _add_contact_geom(xml_path: str, foot_link_names=list[str]) -> str | None:
+        from xml.etree import ElementTree as ET
+        import tempfile
+        
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        
+        worldbody = root.find('worldbody')
+        if worldbody is None:
+            worldbody = ET.SubElement(root, 'worldbody')
+        
+        for foot_link_name in foot_link_names:
+            # find body
+            body = root.find(f".//body[@name='{foot_link_name}']")
+            if body is None:
+                print(f"[WARN] Foot link body '{foot_link_name}' not found in XML.")
+                continue
+
+            # add geom
+            geom = ET.SubElement(body, "geom", {
+                'name': f"{foot_link_name}",
+                'type': 'mesh',
+                'mesh': f"{foot_link_name}",
+                'rgba': '0.7 0.7 0.7 1'
+            })
+            
+            # add blue sphere marker geom
+            sphere_body = ET.SubElement(worldbody, 'body', {
+                'name': f"marker_{foot_link_name}",
+                'mocap': 'true'  # 关键：设置为 mocap body
+            })
+
+            marker_geom = ET.SubElement(sphere_body, "geom", {
+                'name': f'sphere_marker_{foot_link_name}',
+                'type': 'sphere',
+                'size': '0.05',
+                'rgba': '0 0 1 1',
+                'contype': '0',
+                'conaffinity': '0',
+                'group': '1'
+            })
+
+        # save to temp file
+        xml_dir = os.path.dirname(os.path.abspath(xml_path)) or "."
+        fd, temp_path = tempfile.mkstemp(dir=xml_dir, suffix="_contact_geoms.xml")
+        os.close(fd)
+        tree.write(temp_path, encoding="utf-8", xml_declaration=True)
+        return temp_path
+    
+    # basename, example `dance1_subject1`
+    basename = os.path.basename(csv_path).split(".")[0]
+    if save_dir: os.makedirs(save_dir, exist_ok=True)
+    os.makedirs(os.path.join(temp_image_dir, basename), exist_ok=True)
+    os.makedirs(os.path.join(temp_image_dir, 'plot_distance'), exist_ok=True)
+    os.makedirs(npy_dir, exist_ok=True)
+    
+    csv_data = csv.reader(open(csv_path))
+    np_data = np.array(list(csv_data)).astype(np.float32)
+
+    # from xyzw to wxyz
+    np_qpos = np_data.copy()
+    np_qpos[:, 3:7] = np_data[:, [6, 3, 4, 5]]
+    
+    temp_xml_path = _add_contact_geom(xml_path, foot_names)
+    
+    try:
+        mj_model = mujoco.MjModel.from_xml_path(temp_xml_path)
+        mj_data = mujoco.MjData(mj_model)
+        
+        floor_geom_id = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_GEOM, "floor")
+        foot_geom_ids = {name: mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_GEOM, name) for name in foot_names}
+        marker_geom_ids = {name: mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_GEOM, f'sphere_marker_{name}') for name in foot_names}
+
+        base_foot_dist = {name: 0.0 for name in foot_names}
+        distance = {name: [] for name in foot_names}
+        contact_info = {name: [] for name in foot_names}
+        images = []
+        
+        with mujoco.Renderer(mj_model, width=1920, height=1080) as renderer:
+            for i in tqdm.trange(np_qpos.shape[0]):
+                mj_data.qpos[:] = np_qpos[i]
+                mujoco.mj_forward(mj_model, mj_data)
+                
+                foot_pos = np.array([mj_data.body(name).xpos for name in foot_names])
+                
+                # compute distance and contact
+                for name, gid in foot_geom_ids.items():
+                    fromto = np.zeros(6, dtype=np.float64)
+                    dist = mujoco.mj_geomDistance(mj_model, mj_data, floor_geom_id, gid, 1.0, fromto)
+                    distance[name].append(dist)
+        
+                    if i == 0:
+                        base_foot_dist[name] = dist
+                        contact_info[name].append(1)
+                    else:
+                        if dist <= base_foot_dist[name] + thresh[0]:
+                            contact_info[name].append(1)
+                        elif dist >= base_foot_dist[name] + thresh[1]:
+                            contact_info[name].append(0)
+                        else: # middle status: 2
+                            contact_info[name].append(2)
+
+                # markers
+                for name, pos in zip(foot_names, foot_pos):
+                    mocap_id = mj_model.body_mocapid[mj_model.body(f"marker_{name}").id]
+                    mj_data.mocap_pos[mocap_id] = pos
+                    mj_data.mocap_quat[mocap_id] = [1, 0, 0, 0]
+                    
+                    # contact color, 1: red 0: blue 2: orange
+                    geom_id = marker_geom_ids[name]
+                    if contact_info[name][-1] == 1:
+                        mj_model.geom_rgba[geom_id] = [1.0, 0.0, 0.0, 1.0]      # red
+                    elif contact_info[name][-1] == 0:
+                        mj_model.geom_rgba[geom_id] = [0.0, 0.0, 1.0, 1.0]      # blue
+                    else:
+                        mj_model.geom_rgba[geom_id] = [1.0, 0.6, 0.0, 1.0]      # orange
+
+                mujoco.mj_forward(mj_model, mj_data)
+                
+                if save_video:     
+                    renderer.update_scene(mj_data)
+                    image = renderer.render()
+                    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                    images.append(image)
+    
+        # save contact info
+        contact_labels = np.array([contact_info[name] for name in foot_names])
+        contact_labels = contact_labels.T.astype(np.int32)  # (n_frames, n_feet)
+        np.save(os.path.join(npy_dir, basename + ".npy"), contact_labels)
+        print(f"[INFO] Saved contact labels to {os.path.join(npy_dir, basename + '.npy')}")
+        
+        # plot distance
+        plt.figure(figsize=(20, 5), dpi=300)
+        for name, dists in distance.items():
+            plt.plot(dists, label=name, linewidth=1)
+        plt.legend()
+        plt.xlim(0, len(dists))
+        plt.ylim(-0.03, 0.05)
+        plt.savefig(os.path.join(temp_image_dir, 'plot_distance', f"{basename}.png"), bbox_inches='tight', pad_inches=0.1)
+        plt.close()
+    
+        if save_video:
+            for i in tqdm.trange(len(images)):
+                text = "[" + ", ".join([str(contact_labels[i, idx]) for idx in range(contact_labels.shape[1])]) + "]"
+                cv2.putText(images[i], text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                cv2.imwrite(os.path.join(temp_image_dir, basename, f"image_{i:04d}.png"), images[i])
+            print(f"[INFO] Saved {len(images)} images to {os.path.join(temp_image_dir, basename)}")
+            
+            os.system(f"ffmpeg -framerate 30 -i {os.path.join(temp_image_dir, basename)}/image_%04d.png -c:v libx264 -pix_fmt yuv420p {os.path.join(save_dir, basename + '.mp4')}")
+            print(f"[INFO] Saved video to {os.path.join(save_dir, basename + '.mp4')}")
+        
+    finally:
+        # 清理临时文件
+        if os.path.exists(temp_xml_path):
+            os.remove(temp_xml_path)
+            print(f"[INFO] Cleaned up temporary XML file: {temp_xml_path}")
+    
+
+    
+
 def test_csv2video():
     csv_dir = "../../datasets/g1"
     all_csv_file = glob.glob(os.path.join(csv_dir, "*.csv"))
@@ -314,8 +474,30 @@ def test_csv_auto_annotate_contact_v2():
     )
     print("Auto annotation done!")
     
+
+def test_mj_csv_auto_annotate_contact():
+    csv_dir = "../../datasets/g1"
+    all_csv_file = glob.glob(os.path.join(csv_dir, "*.csv"))
+    all_csv_file.sort()
+    print(f"Found {len(all_csv_file)} CSV files")
+    
+    for csv_path in all_csv_file:
+        mj_csv_auto_annotate_contact(
+            xml_path="/home/ac/Desktop/2025/project_3/GMR/assets/unitree_g1/g1_mocap_29dof.xml",
+            csv_path=csv_path,
+            npy_dir="../../datasets/g1_contact_mj",
+            save_dir="./videos/vis",
+            temp_image_dir="./temp_images/mj_vis_contact",
+            foot_names=["left_ankle_roll_link", "right_ankle_roll_link"],
+            thresh=[0.003, 0.015],
+            save_video=True
+        )
+    print("MJ Auto annotation done!")    
+
+    
 if __name__ == "__main__":
     # test_csv2video()
     # test_cvs_recorder_foot()
     # test_csv_auto_annotate_contact()
-    test_csv_auto_annotate_contact_v2()
+    # test_csv_auto_annotate_contact_v2()
+    test_mj_csv_auto_annotate_contact()
