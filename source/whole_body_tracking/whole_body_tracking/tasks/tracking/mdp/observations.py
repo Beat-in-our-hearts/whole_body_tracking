@@ -88,4 +88,10 @@ def motion_contact_mask(env: ManagerBasedEnv, command_name: str) -> torch.Tensor
     motion_contact_mask = command.motion_contact_mask
     if motion_contact_mask is None:
         raise ValueError("Contact data not found in the command.")
-    return motion_contact_mask.view(env.num_envs, -1).float() # [num_envs, num_contacts]
+    # data: 0 is no contact, 1 is contact, 2 is uncertain
+    # observe as float tensor, 0 is uncertain, -1 is no contact, 1 is contact
+    obs_motion_contact_mask = motion_contact_mask.clone()
+    obs_motion_contact_mask[motion_contact_mask == 0] = -1
+    obs_motion_contact_mask[motion_contact_mask == 2] = 0
+
+    return obs_motion_contact_mask.view(env.num_envs, -1).float() # [num_envs, num_contacts]

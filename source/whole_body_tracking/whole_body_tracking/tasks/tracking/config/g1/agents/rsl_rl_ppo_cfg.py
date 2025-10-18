@@ -107,8 +107,8 @@ class G1FlatSafeRLPPORunnerCfg_Lafan1(SafeRL_G1FlatPPORunnerCfg):
     def __post_init__(self):
         super().__post_init__()
         self.algorithm.constraint_threshold = 0.03
-        self.algorithm.lagrangian_multiplier_lr = 5e-5
-        self.algorithm.lagrangian_multiplier_init = 0.01
+        self.algorithm.lagrangian_multiplier_lr = 1e-4
+        self.algorithm.lagrangian_multiplier_init = 0.1
     
 
 #########################
