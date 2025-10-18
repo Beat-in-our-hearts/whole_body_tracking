@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import torch
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import ContactSensor
@@ -81,37 +81,79 @@ def feet_contact_time(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, thresh
     reward = torch.sum((last_contact_time < threshold) * first_air, dim=-1)
     return reward
 
-def motion_contact_mask_reward(env: ManagerBasedRLEnv, command_name: str, sensor_cfg: SceneEntityCfg, threshold: float) -> torch.Tensor:
+def motion_contact_mask_reward(
+    env: ManagerBasedRLEnv, 
+    command_name: str, 
+    sensor_cfg: SceneEntityCfg, 
+    threshold: float,
+    contact_type: Literal["binary", "boolean", "ternary"] = "binary",
+) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
     
     motion_contact_mask = command.motion_contact_mask
     if motion_contact_mask is None:
         raise ValueError("Contact data not found in the command.")
     
-    ref_contact_mask = motion_contact_mask.float()  # [num_envs, num_contacts] bool
+    ref_contact_mask = motion_contact_mask  # [num_envs, num_contacts] int8
     
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     cur_contact_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :]  # [num_envs, num_contacts, 3]
-    cur_contact_mask = (torch.norm(cur_contact_forces, dim=-1) > threshold).float()  # [num_envs, num_contacts]
+    cur_contact_mask = (torch.norm(cur_contact_forces, dim=-1) > threshold)  # [num_envs, num_contacts]
     
-    error_contact_mask = (cur_contact_mask - ref_contact_mask).abs()
-    return 1 - error_contact_mask.mean(dim=-1)  # [num_envs]
+    if contact_type in ["binary", "boolean"]:
+        ref_contact_mask = ref_contact_mask.to(torch.bool)
+        error_contact_mask = (cur_contact_mask ^ ref_contact_mask).float()
+        reward = 1 - error_contact_mask.mean(dim=-1)  # [num_envs]
+    elif contact_type == "ternary":
+        """
+        0 is no contact, 1 is contact, 2 is uncertain
+        only count the certain contacts in the reference
+        """
+        ref_contact_mask = ref_contact_mask.to(torch.int8) # (N, 2)
+        cur_contact_mask = cur_contact_mask.to(torch.int8) # (N, 2)
+        ref_contact_mask_uncertain = (ref_contact_mask == 2)
+        error_contact_mask = (cur_contact_mask != ref_contact_mask).float()
+        reward = 1 - error_contact_mask[~ref_contact_mask_uncertain].mean(dim=-1)  # [num_envs]
+    else:
+        raise ValueError(f"Unknown contact type: {contact_type}")
+    return reward
 
-def motion_contact_mask_cost(env: ManagerBasedRLEnv, command_name: str, sensor_cfg: SceneEntityCfg, threshold: float) -> torch.Tensor:
+def motion_contact_mask_cost(
+    env: ManagerBasedRLEnv, 
+    command_name: str, 
+    sensor_cfg: SceneEntityCfg, 
+    threshold: float,
+    contact_type: Literal["binary", "boolean", "ternary"] = "binary",
+) -> torch.Tensor:
     command: MotionCommand = env.command_manager.get_term(command_name)
     
     motion_contact_mask = command.motion_contact_mask
     if motion_contact_mask is None:
         raise ValueError("Contact data not found in the command.")
-    
-    ref_contact_mask = motion_contact_mask.float()  # [num_envs, num_contacts] bool
-    
+
+    ref_contact_mask = motion_contact_mask  # [num_envs, num_contacts] int8
+
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     cur_contact_forces = contact_sensor.data.net_forces_w[:, sensor_cfg.body_ids, :]  # [num_envs, num_contacts, 3]
-    cur_contact_mask = (torch.norm(cur_contact_forces, dim=-1) > threshold).float()  # [num_envs, num_contacts]
-    
-    error_contact_mask = (cur_contact_mask - ref_contact_mask).abs()
-    return error_contact_mask.mean(dim=-1)  # [num_envs]
+    cur_contact_mask = (torch.norm(cur_contact_forces, dim=-1) > threshold)  # [num_envs, num_contacts]
+
+    if contact_type in ["binary", "boolean"]:
+        ref_contact_mask = ref_contact_mask.bool()
+        error_contact_mask = (cur_contact_mask ^ ref_contact_mask).float()
+        reward = error_contact_mask.mean(dim=-1)  # [num_envs]
+    elif contact_type == "ternary":
+        """
+        0 is no contact, 1 is contact, 2 is uncertain
+        only count the certain contacts in the reference
+        """
+        ref_contact_mask = ref_contact_mask.to(torch.int8)
+        cur_contact_mask = cur_contact_mask.to(torch.int8)
+        ref_contact_mask_uncertain = (ref_contact_mask == 2)
+        error_contact_mask = (cur_contact_mask != ref_contact_mask).float()
+        reward = 1 - error_contact_mask[~ref_contact_mask_uncertain].mean(dim=-1)  # [num_envs]
+    else:
+        raise ValueError(f"Unknown contact type: {contact_type}")
+    return reward
 
 
 def motion_feet_height(env: ManagerBasedRLEnv, command_name: str, body_names: list[str], std: float) -> torch.Tensor:

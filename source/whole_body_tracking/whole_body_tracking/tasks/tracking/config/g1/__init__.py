@@ -83,7 +83,17 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": saferl_flat_env_cfg.G1FlatEnvCfg,
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatSafeRLPPORunnerCfgV2",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatSafeRLPPORunnerCfg_Lafan1",
+    },
+)
+
+gym.register(
+    id="Tracking-SafeRL-Flat-G1-Lafan1-Ternary-v0",
+    entry_point="whole_body_tracking.saferl.envs:ManagerBasedSafeRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": saferl_flat_env_cfg.G1FlatEnvTernaryCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatSafeRLPPORunnerCfg_Lafan1",
     },
 )
 

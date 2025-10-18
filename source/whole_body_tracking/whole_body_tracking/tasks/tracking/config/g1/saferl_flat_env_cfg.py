@@ -30,6 +30,23 @@ class G1FlatEnvCfg(TrackingEnvCfg):
             "right_wrist_yaw_link",
         ]
         self.commands.motion.debug_vis = False
+        
+@configclass
+class G1FlatEnvBooleanCfg(G1FlatEnvCfg):
+    """
+    default, same as G1FlatEnvCfg
+    """
+    def __post_init__(self):
+        super().__post_init__()
+        self.commands.error_contact.contact_type = "boolean"
+        self.costs.error_contact.params["contact_type"] = "boolean"
+        
+@configclass
+class G1FlatEnvTernaryCfg(G1FlatEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.commands.error_contact.contact_type = "ternary"
+        self.costs.error_contact.params["contact_type"] = "ternary"
 
 @configclass
 class G1FlatWoStateEstimationEnvCfg(G1FlatEnvCfg):

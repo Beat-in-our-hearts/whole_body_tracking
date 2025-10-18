@@ -6,7 +6,7 @@ import os
 import torch
 from collections.abc import Sequence
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.assets import Articulation
 from isaaclab.sensors import ContactSensor
@@ -44,7 +44,7 @@ class MotionLoader:
         self.time_step_total = self.joint_pos.shape[0]
         
         # for contact data
-        self.contact_mask = torch.tensor(data["contact"], dtype=torch.bool, device=device) if "contact" in data else None
+        self.contact_mask = torch.tensor(data["contact"], dtype=torch.int8, device=device) if "contact" in data else None
 
     @property
     def body_pos_w(self) -> torch.Tensor:
@@ -481,8 +481,9 @@ class ErrorContactCommand(NullCommand):
         super().__init__(cfg, env)
         self.contact_sensor: ContactSensor = self._env.scene.sensors[cfg.sensor_cfg.name]
         self.metrics["error_contact"] = torch.zeros(self.num_envs, device=self.device)
-        self.cfg.sensor_cfg.resolve(self._env.scene) # fixbug 
-    
+        self.cfg.sensor_cfg.resolve(self._env.scene) # fixbug
+        self.contact_type: Literal["binary", "boolean", "ternary"] = cfg.contact_type
+
     def compute(self, dt: float):
         self._update_metrics()
 
@@ -508,11 +509,24 @@ class ErrorContactCommand(NullCommand):
         motion_command: MotionCommand = self._env.command_manager.get_term(self.cfg.ref_command_name)
         if motion_command.motion_contact_mask is None:
             raise ValueError("Contact data not found in the command.")
-        ref_contact_mask = motion_command.motion_contact_mask # [num_envs, num_contacts]
-        
-        contact_mismatch = (cur_contact_mask != ref_contact_mask).float()  # [num_envs, num_contacts]
-        self.metrics["error_contact"] += contact_mismatch.mean(dim=-1)  # average over contact points
-        
+        ref_contact_mask = motion_command.motion_contact_mask # (N, 2) int8
+
+        if self.contact_type in ["binary", "boolean"]:
+            ref_contact_mask = ref_contact_mask.to(torch.bool)
+            contact_mismatch = (cur_contact_mask != ref_contact_mask).float()
+            self.metrics["error_contact"] += contact_mismatch.mean(dim=-1)  # average over contact points
+        elif self.contact_type in ["ternary"]: # 0 is no contact, 1 is contact, 2 is uncertain
+            """
+            only count the certain contacts in the reference
+            """
+            cur_contact_mask = cur_contact_mask.to(torch.int8) # (N, 2)
+            ref_contact_mask = ref_contact_mask.to(torch.int8) # (N, 2)
+            # uncertain contact mask
+            ref_contact_mask_uncertain = (ref_contact_mask == 2)
+            contact_mismatch = (cur_contact_mask != ref_contact_mask).float()
+            self.metrics["error_contact"] += contact_mismatch[~ref_contact_mask_uncertain].mean(dim=-1)  # average over certain contact points
+        else:
+            raise ValueError(f"Unknown contact type: {self.contact_type}")
 
 @configclass
 class ErrorContactCommandCfg(CommandTermCfg):
@@ -522,7 +536,9 @@ class ErrorContactCommandCfg(CommandTermCfg):
     sensor_cfg: SceneEntityCfg = SceneEntityCfg("contact_forces", body_names=["left_ankle_roll_link", "right_ankle_roll_link"])
     ref_command_name: str = "motion"
     threshold: float = 1.0
-    
+
+    contact_type: Literal["binary", "boolean", "ternary"] = "binary"
+
     def __post_init__(self):
         # bug: commands.error_contact.resampling_time_range
         self.resampling_time_range = None
