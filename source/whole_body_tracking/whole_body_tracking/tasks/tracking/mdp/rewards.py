@@ -150,7 +150,7 @@ def motion_contact_mask_cost(
         cur_contact_mask = cur_contact_mask.to(torch.int8)
         ref_contact_mask_uncertain = (ref_contact_mask == 2)
         error_contact_mask = (cur_contact_mask != ref_contact_mask).float()
-        reward = 1 - error_contact_mask[~ref_contact_mask_uncertain].mean(dim=-1)  # [num_envs]
+        reward = error_contact_mask[~ref_contact_mask_uncertain].mean(dim=-1)  # [num_envs]
     else:
         raise ValueError(f"Unknown contact type: {contact_type}")
     return reward
