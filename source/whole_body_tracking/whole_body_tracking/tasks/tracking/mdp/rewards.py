@@ -155,15 +155,17 @@ def motion_contact_mask_cost(
         raise ValueError(f"Unknown contact type: {contact_type}")
     return reward
 
+"""
+motion_feet_height will be delete 
+"""
+# def motion_feet_height(env: ManagerBasedRLEnv, command_name: str, body_names: list[str], std: float) -> torch.Tensor:
+#     command: MotionCommand = env.command_manager.get_term(command_name)
 
-def motion_feet_height(env: ManagerBasedRLEnv, command_name: str, body_names: list[str], std: float) -> torch.Tensor:
-    command: MotionCommand = env.command_manager.get_term(command_name)
-
-    robot_body_ids = command.robot.find_bodies(body_names, preserve_order=True)[0]
-    cur_feet_heights = command.robot_body_pos_w[:, robot_body_ids, 2]
+#     robot_body_ids = command.robot.find_bodies(body_names, preserve_order=True)[0]
+#     cur_feet_heights = command.robot_body_pos_w[:, robot_body_ids, 2]
     
-    motion_body_ids = [command.cfg.body_names.index(name) for name in body_names]
-    target_feet_heights = command.body_pos_w[:, motion_body_ids, 2]
-    error = cur_feet_heights - target_feet_heights
+#     motion_body_ids = [command.cfg.body_names.index(name) for name in body_names]
+#     target_feet_heights = command.body_pos_w[:, motion_body_ids, 2]
+#     error = cur_feet_heights - target_feet_heights
 
-    return torch.exp(-torch.square(error).mean(dim=-1) / std**2)
+#     return torch.exp(-torch.square(error).mean(dim=-1) / std**2)

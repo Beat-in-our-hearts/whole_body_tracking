@@ -91,7 +91,7 @@ class SafeRL_G1FlatPPORunnerCfg(RslSafeRlOnPolicyRunnerCfg):
         constraint_threshold=0.0025,
         lagrangian_multiplier_init=0.1,
         lagrangian_multiplier_lr=1e-4,
-        lagrangian_multiplier_max=100.0,
+        lagrangian_multiplier_max=10.0,
         lagrangian_multiplier_min=0.0,
     )
     
@@ -106,9 +106,9 @@ class G1FlatSafeRLPPORunnerCfg_Lafan1(SafeRL_G1FlatPPORunnerCfg):
     experiment_name = "g1_flat_saferl_lafan1"
     def __post_init__(self):
         super().__post_init__()
-        self.algorithm.constraint_threshold = 0.03
-        self.algorithm.lagrangian_multiplier_lr = 1e-4
-        self.algorithm.lagrangian_multiplier_init = 0.1
+        self.algorithm.constraint_threshold = 0.1
+        self.algorithm.lagrangian_multiplier_lr = 1e-5
+        self.algorithm.lagrangian_multiplier_init = 1e-1
     
 
 #########################

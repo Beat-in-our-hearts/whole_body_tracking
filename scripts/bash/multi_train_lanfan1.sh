@@ -35,16 +35,16 @@ IFS=',' read -r -a task_array <<< "$tasks"
 for task in "${task_array[@]}"; do
     case "$type" in
         baseline)
-            CUDA_VISIBLE_DEVICES=$cuda_device python scripts/rsl_rl/train.py --task=Tracking-Baseline-Flat-G1-v0 --registry_name seu-ai-org/wandb-registry-motions/${task}_withcontact --headless --logger wandb --log_project_name $wandb_project_name --run_name ${task}_baseline_seed${seed} --seed $seed &
+            CUDA_VISIBLE_DEVICES=$cuda_device python scripts/rsl_rl/train.py --task=Tracking-Baseline-Flat-G1-v0 --registry_name ziang_zheng-tsinghua-university-org/wandb-registry-motions/${task}_ternary --headless --logger wandb --log_project_name $wandb_project_name --run_name ${task}_baseline_seed${seed} --seed $seed &
             ;;
         saferl)
-            CUDA_VISIBLE_DEVICES=$cuda_device python scripts/rsl_rl/train.py --task=Tracking-SafeRL-Flat-G1-Lafan1-v0 --registry_name seu-ai-org/wandb-registry-motions/${task}_withcontact --headless --logger wandb --log_project_name $wandb_project_name --run_name ${task}_saferl_seed${seed} --seed $seed --saferl &
+            CUDA_VISIBLE_DEVICES=$cuda_device python scripts/rsl_rl/train.py --task=Tracking-SafeRL-Flat-G1-Lafan1-v0 --registry_name ziang_zheng-tsinghua-university-org/wandb-registry-motions/${task}_ternary --headless --logger wandb --log_project_name $wandb_project_name --run_name ${task}_saferl_seed${seed} --seed $seed --saferl &
             ;;
         saferl_v2)
             CUDA_VISIBLE_DEVICES=$cuda_device python scripts/rsl_rl/train.py --task=Tracking-SafeRL-Flat-G1-Lafan1-Ternary-v0 --registry_name ziang_zheng-tsinghua-university-org/wandb-registry-motions/${task}_ternary --headless --logger wandb --log_project_name $wandb_project_name --run_name ${task}_saferl_seed${seed} --seed $seed --saferl &
             ;;
         *)
-            echo "type must be baseline/saferl"; exit 1
+            echo "type must be baseline/saferl/saferl_v2"; exit 1
             ;;
     esac
 	sleep 5
