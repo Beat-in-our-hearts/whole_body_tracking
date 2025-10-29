@@ -61,7 +61,15 @@ gym.register(
     },
 )
 
-
+gym.register(
+    id="Tracking-Baseline-Flat-G1-Ternary-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": contact_flat_env_cfg.G1BaselineFlatEnvTernaryCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatBaselinePPORunnerCfg",
+    },
+)
 
 ############################################
 #       Register SafeRL environments       #
@@ -96,6 +104,17 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatSafeRLPPORunnerCfg_Lafan1",
     },
 )
+
+gym.register(
+    id="Tracking-SafeRL-Flat-G1-AMASS-Ternary-v0",
+    entry_point="whole_body_tracking.saferl.envs:ManagerBasedSafeRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": saferl_flat_env_cfg.G1FlatEnvTernaryCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1FlatSafeRLPPORunnerCfg_AMASS",
+    },
+)
+
 
 
 ############################################

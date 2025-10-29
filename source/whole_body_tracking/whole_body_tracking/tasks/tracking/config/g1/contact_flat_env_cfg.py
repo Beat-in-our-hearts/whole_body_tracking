@@ -57,6 +57,11 @@ class G1BaselineFlatEnvCfg(G1FlatEnvCfg):
         self.observations.critic.motion_contact_mask = None
         self.rewards.motion_contact_mask = None
         
+@configclass
+class G1BaselineFlatEnvTernaryCfg(G1BaselineFlatEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.commands.error_contact.contact_type = "ternary"
      
 @configclass
 class Deploy_G1FlatEnvCfg(G1FlatEnvCfg):

@@ -251,7 +251,8 @@ def mj_csv_auto_annotate_contact(xml_path: str,
                                  foot_names: list[str], 
                                  thresh: list[float], 
                                  save_video: bool=False, 
-                                 video_wh:list[float]=[1920, 1080]):
+                                 video_wh:list[float]=[1920, 1080],
+                                 first_n_frames: int=50) -> None:
 
     def _write_contact_frame(frame_dir: str, idx: int, image, labels) -> None:
         frame = image.copy()
@@ -366,7 +367,7 @@ def mj_csv_auto_annotate_contact(xml_path: str,
                     dist = mujoco.mj_geomDistance(mj_model, mj_data, floor_geom_id, gid, 1.0, fromto)
                     distance[name].append(dist)
         
-                    if i <= 50:
+                    if i <= first_n_frames:
                         base_foot_dist[name] = max(base_foot_dist[name], dist)
                     if dist <= base_foot_dist[name] + thresh[0]:
                         contact_info[name].append(1)
@@ -528,11 +529,54 @@ def test_mj_csv_auto_annotate_contact():
             video_wh=[640, 480],
         )
     print("MJ Auto annotation done!")    
+    
+def test_mj_csv_auto_annotate_contact_v2():
+    csv_dir = "../../datasets/gmr_g1_cmu/csv"
+    all_csv_file = glob.glob(os.path.join(csv_dir, "*.csv"))
+    all_csv_file.sort()
+    print(f"Found {len(all_csv_file)} CSV files")
+    
+    for csv_path in all_csv_file:
+        mj_csv_auto_annotate_contact(
+            xml_path="/home/ac/Desktop/2025/project_3/GMR/assets/unitree_g1/g1_mocap_29dof.xml",
+            csv_path=csv_path,
+            npy_dir="../../datasets/gmr_g1_cmu/contact_mj",
+            save_dir="./videos/vis/cmu_tmp",
+            temp_image_dir="./temp_images/cmu_mj_vis_contact",
+            foot_names=["left_ankle_roll_link", "right_ankle_roll_link"],
+            thresh=[0.003, 0.025],
+            save_video=True,
+            video_wh=[640, 480],
+            first_n_frames=5,
+        )
+    print("MJ Auto annotation done!")    
 
+def test_mj_csv_auto_annotate_contact_v3():
+    csv_dir = "./datasets/gmr_g1_accad/csv"
+    all_csv_file = glob.glob(os.path.join(csv_dir, "*.csv"))
+    all_csv_file.sort()
+    print(f"Found {len(all_csv_file)} CSV files")
+    
+    for csv_path in all_csv_file:
+        mj_csv_auto_annotate_contact(
+            xml_path="/home/ac/Desktop/2025/project_3/GMR/assets/unitree_g1/g1_mocap_29dof.xml",
+            csv_path=csv_path,
+            npy_dir="./datasets/gmr_g1_accad/contact_mj",
+            save_dir="./datasets/gmr_g1_accad/videos/",
+            temp_image_dir="./datasets/gmr_g1_accad/temp_images/",
+            foot_names=["left_ankle_roll_link", "right_ankle_roll_link"],
+            thresh=[0.003, 0.1],
+            save_video=True,
+            video_wh=[640, 480],
+            first_n_frames=10,
+        )
+    print("MJ Auto annotation done!")    
     
 if __name__ == "__main__":
     # test_csv2video()
     # test_cvs_recorder_foot()
     # test_csv_auto_annotate_contact()
     # test_csv_auto_annotate_contact_v2()
-    test_mj_csv_auto_annotate_contact()
+    # test_mj_csv_auto_annotate_contact()
+    # test_mj_csv_auto_annotate_contact_v2()
+    test_mj_csv_auto_annotate_contact_v3()
