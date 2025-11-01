@@ -113,13 +113,13 @@ class G1FlatSafeRLPPORunnerCfg_Lafan1(SafeRL_G1FlatPPORunnerCfg):
     
 @configclass
 class G1FlatSafeRLPPORunnerCfg_AMASS(SafeRL_G1FlatPPORunnerCfg):
-    max_iterations = 30000
+    max_iterations = 10000
     experiment_name = "g1_flat_saferl_amass"
     def __post_init__(self):
         super().__post_init__()
         self.algorithm.constraint_threshold = 0.01
-        self.algorithm.lagrangian_multiplier_lr = 5e-4
-        self.algorithm.lagrangian_multiplier_init = 0.5
+        self.algorithm.lagrangian_multiplier_lr = 2e-4
+        self.algorithm.lagrangian_multiplier_init = 0.1
         self.algorithm.lagrangian_multiplier_min = self.algorithm.lagrangian_multiplier_init
     
 

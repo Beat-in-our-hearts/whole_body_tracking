@@ -481,6 +481,7 @@ class ErrorContactCommand(NullCommand):
         super().__init__(cfg, env)
         self.contact_sensor: ContactSensor = self._env.scene.sensors[cfg.sensor_cfg.name]
         self.metrics["error_contact"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["uncertain_contact"] = torch.zeros(self.num_envs, device=self.device)
         self.cfg.sensor_cfg.resolve(self._env.scene) # fixbug
         self.contact_type: Literal["binary", "boolean", "ternary"] = cfg.contact_type
 
@@ -525,6 +526,7 @@ class ErrorContactCommand(NullCommand):
             ref_contact_mask_uncertain = (ref_contact_mask == 2)
             contact_mismatch = (cur_contact_mask != ref_contact_mask).float()
             self.metrics["error_contact"] += contact_mismatch[~ref_contact_mask_uncertain].mean(dim=-1)  # average over certain contact points
+            self.metrics["uncertain_contact"] += ref_contact_mask_uncertain.float().mean(dim=-1) # average over uncertain contact points
         else:
             raise ValueError(f"Unknown contact type: {self.contact_type}")
 
