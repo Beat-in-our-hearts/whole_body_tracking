@@ -131,10 +131,15 @@ class G1FlatSafeRLPPORunnerCfg_AMASS(SafeRL_G1FlatPPORunnerCfg):
 
 @configclass
 class Deploy_G1FlatPPORunnerCfg(G1FlatPPORunnerCfg):
-    max_iterations = 50000
+    max_iterations = 30000
     experiment_name = "deploy_g1_flat"
 
 @configclass
 class Deploy_G1FlatSafeRLPPORunnerCfg(G1FlatSafeRLPPORunnerCfg):
-    max_iterations = 50000
+    max_iterations = 30000
     experiment_name = "deploy_g1_flat_saferl"
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.algorithm.constraint_threshold = 0.001
+        self.algorithm.lagrangian_multiplier_lr = 2e-4

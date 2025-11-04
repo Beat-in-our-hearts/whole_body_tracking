@@ -21,6 +21,7 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--motion_file", type=str, default=None, help="Path to the motion file.")
 parser.add_argument("--saferl", action="store_true", default=False, help="Use SafeRLOnPolicyRunner if set.")
+parser.add_argument("--exported_name", default="policy", help="Export the model.")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -153,15 +154,20 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg | Man
 
     # export policy to onnx/jit
     export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
+    print(f"[INFO] Exporting model to directory: {export_model_dir}")
 
     export_motion_policy_as_onnx(
         env.unwrapped,
         ppo_runner.alg.policy,
         normalizer=ppo_runner.obs_normalizer,
         path=export_model_dir,
-        filename="policy.onnx",
+        filename=args_cli.exported_name+".onnx",
     )
-    attach_onnx_metadata(env.unwrapped, args_cli.wandb_path if args_cli.wandb_path else "none", export_model_dir)
+    attach_onnx_metadata(env.unwrapped, args_cli.wandb_path if args_cli.wandb_path else "none", export_model_dir, filename=args_cli.exported_name+".onnx")
+    
+    # print joint order
+    print(f"[INFO] Joint orders: {env.unwrapped.scene['robot'].joint_names}")
+    
     # reset environment
     obs, _ = env.get_observations()
     timestep = 0

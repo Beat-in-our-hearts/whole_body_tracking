@@ -565,7 +565,7 @@ def test_mj_csv_auto_annotate_contact_v3():
             save_dir="./datasets/gmr_g1_accad/videos/",
             temp_image_dir="./datasets/gmr_g1_accad/temp_images/",
             foot_names=["left_ankle_roll_link", "right_ankle_roll_link"],
-            thresh=[0.003, 0.1],
+            thresh=[0.003, 0.01],
             save_video=True,
             video_wh=[640, 480],
             first_n_frames=10,
