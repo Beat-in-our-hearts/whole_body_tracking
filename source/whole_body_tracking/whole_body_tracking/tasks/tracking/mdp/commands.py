@@ -578,7 +578,8 @@ class MultiMotionCommand(CommandTerm):
         sampled_time_steps = (
             ((sampled_bins.float() + random_jitter) / bin_counts.float()) * (motion_lengths.float() - 1)
         ).long()
-        sampled_time_steps = torch.clamp(sampled_time_steps, 0, motion_lengths - 1)
+        # Clamp using element-wise operations for tensor max values
+        sampled_time_steps = torch.minimum(torch.maximum(sampled_time_steps, torch.tensor(0, device=self.device)), motion_lengths - 1)
         
         return sampled_time_steps
 
@@ -605,9 +606,11 @@ class MultiMotionCommand(CommandTerm):
             failed_bin_counts = self.motion_bin_counts[failed_motion_indices]  # [N_failed]
             
             # Vectorized: calculate bin indices for all failed envs
-            current_bin_indices = torch.clamp(
-                (failed_time_steps * failed_bin_counts) // torch.clamp(failed_motion_lengths, min=1),
-                0, failed_bin_counts - 1
+            bin_indices_raw = (failed_time_steps * failed_bin_counts) // torch.clamp(failed_motion_lengths, min=1)
+            # Clamp using element-wise operations for tensor max values
+            current_bin_indices = torch.minimum(
+                torch.maximum(bin_indices_raw, torch.tensor(0, device=self.device)), 
+                failed_bin_counts - 1
             )  # [N_failed]
             
             # Vectorized: compute global bin indices
@@ -638,7 +641,8 @@ class MultiMotionCommand(CommandTerm):
             motion_lengths = self.dataloader.motion_lengths[sampled_indices]  # [num_envs]
             random_fractions = torch.rand(num_envs, device=self.device)  # [0, 1)
             sampled_time_steps = (random_fractions * motion_lengths.float()).long()
-            sampled_time_steps = torch.clamp(sampled_time_steps, 0, motion_lengths - 1)
+            # Clamp using element-wise operations for tensor max values
+            sampled_time_steps = torch.minimum(torch.maximum(sampled_time_steps, torch.tensor(0, device=self.device)), motion_lengths - 1)
         
         # Vectorized: update time_steps for all environments
         self.time_steps[env_ids_tensor] = sampled_time_steps
