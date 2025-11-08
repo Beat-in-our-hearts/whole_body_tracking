@@ -16,6 +16,7 @@ args.add_argument("--input_dir", type=str, required=True, help="The directory co
 args.add_argument("--output_dir", type=str, required=True, help="The directory to save output NPZ files.")
 args.add_argument("--input_fps", type=int, default=30, help="The fps of the input motion.")
 args.add_argument("--output_fps", type=int, default=50, help="The fps of the output motion.")
+args.add_argument("--overwrite", action="store_true", help="Overwrite existing NPZ files. If not set, skip existing files.")
 
 if __name__ == "__main__":
     args_cli = args.parse_args()
@@ -28,8 +29,18 @@ if __name__ == "__main__":
     all_csv_num = len(csv_files)
     print(f"[INFO] Found {all_csv_num} CSV files in {input_dir}")
 
+    skipped_count = 0
+    processed_count = 0
+
     for i, csv_file in enumerate(csv_files):
         output_file = output_dir / f"{csv_file.stem}.npz"
+        
+        # Check if output file already exists
+        if output_file.exists() and not args_cli.overwrite:
+            print(f"[INFO] Skipping {i+1}/{all_csv_num} {csv_file.name} (output file already exists)")
+            skipped_count += 1
+            continue
+        
         command = (
             f"python scripts/data/offline_csv_to_npz.py "
             f"--input_file {csv_file} "
@@ -38,5 +49,12 @@ if __name__ == "__main__":
             f"--output_fps {args_cli.output_fps} "
             f"--headless"
         )
-        print(f"[INFO] Processing {i+1}/{all_csv_num} {csv_file} -> {output_file}")
+        status_msg = "Overwriting" if output_file.exists() else "Processing"
+        print(f"[INFO] {status_msg} {i+1}/{all_csv_num} {csv_file.name} -> {output_file.name}")
         os.system(command)
+        processed_count += 1
+    
+    print(f"\n[INFO] Batch conversion completed!")
+    print(f"[INFO] Total files: {all_csv_num}")
+    print(f"[INFO] Processed: {processed_count}")
+    print(f"[INFO] Skipped: {skipped_count}")
