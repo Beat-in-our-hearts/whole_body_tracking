@@ -493,72 +493,15 @@ class MultiMotionCommand(CommandTerm):
         )
 
     def _compute_sampling_weights(self, num_samples: int) -> torch.Tensor:
-        """Compute sampling weights combining curriculum, adaptive, and diversity strategies.
+        """Compute uniform sampling weights for all motions.
         
         Returns:
-            weights: [num_motions] tensor of sampling weights
+            weights: [num_motions] tensor of uniform sampling weights
         """
         num_motions = len(self.dataset)
         
-        # 1. Curriculum weights based on quantity
-        if self.cfg.use_curriculum:
-            # Get quantity for each motion
-            quantities = torch.tensor(self.dataset.quantities, device=self.device)
-            
-            # Interpolate curriculum weights: early training favors quantity=1, later training is more uniform
-            # quantity=1 (best): starts at 0.85, ends at 0.50
-            # quantity=2 (medium): starts at 0.10, ends at 0.30  
-            # quantity=3 (hard): starts at 0.05, ends at 0.20
-            q1_weight = 0.85 * (1 - self.curriculum_progress) + 0.50 * self.curriculum_progress
-            q2_weight = 0.10 * (1 - self.curriculum_progress) + 0.30 * self.curriculum_progress
-            q3_weight = 0.05 * (1 - self.curriculum_progress) + 0.20 * self.curriculum_progress
-            
-            curriculum_weights = torch.zeros(num_motions, device=self.device)
-            curriculum_weights[quantities == 1] = q1_weight
-            curriculum_weights[quantities == 2] = q2_weight
-            curriculum_weights[quantities == 3] = q3_weight
-        else:
-            curriculum_weights = torch.ones(num_motions, device=self.device) / num_motions
-        
-        # 2. Adaptive weights based on failure bins
-        if self.cfg.use_adaptive:
-            # Vectorized average failure rate calculation using segment operations
-            # Use scatter_add to sum failures per motion, then divide by bin counts
-            motion_total_failures = torch.zeros(num_motions, device=self.device)
-            
-            # Create motion index for each bin: [0,0,...,0, 1,1,...,1, ..., N-1,N-1,...,N-1]
-            motion_indices_per_bin = torch.repeat_interleave(
-                torch.arange(num_motions, device=self.device),
-                self.motion_bin_counts
-            )  # [total_bins]
-            
-            # Sum failures per motion using scatter_add
-            motion_total_failures.scatter_add_(
-                0,
-                motion_indices_per_bin,
-                self.motion_bin_failed_counts
-            )
-            
-            # Vectorized average: total_failures / bin_counts
-            avg_failures = motion_total_failures / self.motion_bin_counts.float()
-            adaptive_weights = avg_failures + self.cfg.adaptive_uniform_ratio / num_motions
-        else:
-            adaptive_weights = torch.ones(num_motions, device=self.device)
-        
-        # 3. Diversity penalty (reduce weight for recently used motions)
-        if self.cfg.use_diversity:
-            # Average usage across all agents
-            avg_usage = self.agent_motion_usage.mean(dim=0)
-            # Penalize frequently used motions
-            diversity_penalty = 1.0 / (1.0 + avg_usage * self.cfg.diversity_penalty_strength)
-        else:
-            diversity_penalty = torch.ones(num_motions, device=self.device)
-        
-        # Combine weights
-        weights = curriculum_weights * adaptive_weights * diversity_penalty
-        
-        # Normalize
-        weights = weights / weights.sum()
+        # Uniform weights for all motions
+        weights = torch.ones(num_motions, device=self.device) / num_motions
         
         return weights
 
@@ -981,10 +924,6 @@ class MultiMotionCommandCfg(CommandTermCfg):
 
     asset_name: str = MISSING
     
-    # Resampling configuration (inherited from CommandTermCfg)
-    # Set to very large value to disable time-based resampling (resample only when motion ends)
-    resampling_time_range: tuple[float, float] = (1.0e9, 1.0e9)
-    
     # Dataset configuration
     dataset_dirs: list[str] = MISSING
     robot_name: str = MISSING
@@ -1001,7 +940,7 @@ class MultiMotionCommandCfg(CommandTermCfg):
     
     # Curriculum learning
     use_curriculum: bool = True
-    curriculum_total_steps: float = 1e7  # Total steps to complete curriculum
+    curriculum_total_steps: float = 1e8  # Total steps to complete curriculum
     
     # Adaptive sampling
     use_adaptive: bool = True
@@ -1010,10 +949,6 @@ class MultiMotionCommandCfg(CommandTermCfg):
     adaptive_uniform_ratio: float = 0.1
     adaptive_alpha: float = 0.001  # EMA decay for bin failure tracking
     
-    # Diversity control
-    use_diversity: bool = True
-    diversity_penalty_strength: float = 0.5  # Strength of diversity penalty
-
     # Visualization
     anchor_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/pose")
     anchor_visualizer_cfg.markers["frame"].scale = (0.2, 0.2, 0.2)
