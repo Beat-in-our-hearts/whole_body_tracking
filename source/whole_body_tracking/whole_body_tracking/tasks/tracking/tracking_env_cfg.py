@@ -56,6 +56,7 @@ class MySceneCfg(InteractiveSceneCfg):
             mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
             project_uvw=True,
         ),
+        debug_vis=False,
     )
     # robots
     robot: ArticulationCfg = MISSING
