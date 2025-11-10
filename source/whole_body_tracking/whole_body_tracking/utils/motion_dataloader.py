@@ -84,6 +84,7 @@ class Motion_Dataloader:
         self.motion_lengths: torch.Tensor  # [num_motions], length of each motion
         self.motion_offsets: torch.Tensor  # [num_motions], starting index of each motion
         self.motion_fps: torch.Tensor      # [num_motions], FPS of each motion
+        self.time_step_total: int             # Total number of frames in concatenated buffer
         
         print(f"[Motion_Dataloader] Loading and concatenating {self.num_motions} motions...")
         
@@ -144,9 +145,13 @@ class Motion_Dataloader:
         # Store FPS for each motion
         self.motion_fps = torch.tensor(fps_list, dtype=torch.float32, device=self.device)
         
+        # Store total buffer length
+        self.time_step_total = self.motion_buffer.joint_pos.shape[0]
+        
         print(f"[Motion_Dataloader] Concatenated tensors:")
         print(f"  joint_pos: {self.motion_buffer.joint_pos.shape}")
         print(f"  body_pos_w: {self.motion_buffer.body_pos_w.shape}")
+        print(f"  total_frames: {self.time_step_total}")
         print(f"  motion_lengths: {self.motion_lengths.shape}, range: [{self.motion_lengths.min()}, {self.motion_lengths.max()}]")
         print(f"  motion_offsets: {self.motion_offsets.shape}")
     
@@ -157,6 +162,11 @@ class Motion_Dataloader:
     def get_motion_fps(self, motion_id: int) -> float:
         """Get FPS of a specific motion."""
         return self.motion_fps[motion_id].item()
+    
+    @property
+    def time_step_total(self) -> int:
+        """Get total number of time steps (frames) in the concatenated buffer."""
+        return self.time_step_total
     
     def sample(self, n: int, weights: torch.Tensor | list | None = None) -> torch.Tensor:
         """Sample n motion indices with optional weights.
