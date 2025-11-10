@@ -409,6 +409,7 @@ class MultiMotionCommand(CommandTerm):
         
         self.dataloader = Motion_Dataloader(
             dataset=self.dataset,
+            body_indexes=self.body_indexes,
             device=self.device,
         )
         
@@ -470,42 +471,42 @@ class MultiMotionCommand(CommandTerm):
     @property
     def body_pos_w(self) -> torch.Tensor:
         """Target body positions in world frame."""
-        return self.dataloader.motion_buffer.body_pos_w[self.global_time_steps, self.body_indexes] + self._env.scene.env_origins[:, None, :]
+        return self.dataloader.motion_buffer.body_pos_w[self.global_time_steps] + self._env.scene.env_origins[:, None, :]
 
     @property
     def body_quat_w(self) -> torch.Tensor:
         """Target body quaternions in world frame."""
-        return self.dataloader.motion_buffer.body_quat_w[self.global_time_steps, self.body_indexes]
+        return self.dataloader.motion_buffer.body_quat_w[self.global_time_steps]
 
     @property
     def body_lin_vel_w(self) -> torch.Tensor:
         """Target body linear velocities in world frame."""
-        return self.dataloader.motion_buffer.body_lin_vel_w[self.global_time_steps, self.body_indexes]
+        return self.dataloader.motion_buffer.body_lin_vel_w[self.global_time_steps]
 
     @property
     def body_ang_vel_w(self) -> torch.Tensor:
         """Target body angular velocities in world frame."""
-        return self.dataloader.motion_buffer.body_ang_vel_w[self.global_time_steps, self.body_indexes]
+        return self.dataloader.motion_buffer.body_ang_vel_w[self.global_time_steps]
 
     @property
     def anchor_pos_w(self) -> torch.Tensor:
         """Target anchor body position in world frame."""
-        return self.body_pos_w[:, self.motion_anchor_body_index] + self._env.scene.env_origins
+        return self.body_pos_w[self.global_time_steps, self.motion_anchor_body_index] + self._env.scene.env_origins
 
     @property
     def anchor_quat_w(self) -> torch.Tensor:
         """Target anchor body quaternion in world frame."""
-        return self.body_quat_w[:, self.motion_anchor_body_index]
+        return self.body_quat_w[self.global_time_steps, self.motion_anchor_body_index]
 
     @property
     def anchor_lin_vel_w(self) -> torch.Tensor:
         """Target anchor body linear velocity in world frame."""
-        return self.body_lin_vel_w[:, self.motion_anchor_body_index]
+        return self.body_lin_vel_w[self.global_time_steps, self.motion_anchor_body_index]
 
     @property
     def anchor_ang_vel_w(self) -> torch.Tensor:
         """Target anchor body angular velocity in world frame."""
-        return self.body_ang_vel_w[:, self.motion_anchor_body_index]
+        return self.body_ang_vel_w[self.global_time_steps, self.motion_anchor_body_index]
 
     @property
     def robot_joint_pos(self) -> torch.Tensor:
@@ -631,7 +632,7 @@ class MultiMotionCommand(CommandTerm):
         
         new_time_steps = self.global_time_steps[env_ids] - self.dataloader.motion_offsets[new_motion_ids]
         new_motion_lengths = self.dataloader.motion_lengths[new_motion_ids]
-        new_time_steps = torch.clamp(new_time_steps, 0, new_motion_lengths - 1)
+        new_time_steps = torch.minimum(new_time_steps, new_motion_lengths - 1)
         
         self.motion_ids[env_ids] = new_motion_ids
         self.time_steps[env_ids] = new_time_steps

@@ -103,9 +103,6 @@ class CommandsCfg:
         dataset_dirs=MISSING,
         robot_name=MISSING,
         split="train",
-        
-        use_curriculum=False,
-        use_adaptive=False,
     )
 
 
