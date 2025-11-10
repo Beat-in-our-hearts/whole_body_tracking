@@ -4,7 +4,7 @@ This module provides a PyTorch-style dataloader with weighted sampling support
 and efficient vectorized batch indexing for multi-motion tracking in 
 reinforcement learning environments.
 """
-
+from collections.abc import Sequence
 import torch
 
 from whole_body_tracking.utils.motion_dataset import Motion_Dataset
@@ -51,20 +51,38 @@ class Motion_Dataloader:
             body_lin_vel_w: [total_frames, num_bodies, 3] - Body linear velocities
             body_ang_vel_w: [total_frames, num_bodies, 3] - Body angular velocities
         """
-        
-        def __init__(self):
+
+        def __init__(self, body_indexes: Sequence[int]):
             """Initialize empty motion buffer."""
             self.joint_pos: torch.Tensor | None = None
             self.joint_vel: torch.Tensor | None = None
-            self.body_pos_w: torch.Tensor | None = None
-            self.body_quat_w: torch.Tensor | None = None
-            self.body_lin_vel_w: torch.Tensor | None = None
-            self.body_ang_vel_w: torch.Tensor | None = None
+            self._body_pos_w: torch.Tensor | None = None
+            self._body_quat_w: torch.Tensor | None = None
+            self._body_lin_vel_w: torch.Tensor | None = None
+            self._body_ang_vel_w: torch.Tensor | None = None
+            self.body_indexes = body_indexes
+        
+        @property
+        def body_pos_w(self) -> torch.Tensor:
+            return self._body_pos_w[:, self.body_indexes]
+
+        @property
+        def body_quat_w(self) -> torch.Tensor:
+            return self._body_quat_w[:, self.body_indexes]
+
+        @property
+        def body_lin_vel_w(self) -> torch.Tensor:
+            return self._body_lin_vel_w[:, self.body_indexes]
+
+        @property
+        def body_ang_vel_w(self) -> torch.Tensor:
+            return self._body_ang_vel_w[:, self.body_indexes]
 
     
     def __init__(
         self,
         dataset: Motion_Dataset,
+        body_indexes: Sequence[int],
         device: str = "cuda"
     ):
         """Initialize the dataloader with concatenated sequences.
@@ -77,8 +95,10 @@ class Motion_Dataloader:
         self.device = device
         self.num_motions = len(dataset)
         
+        self._body_indexes = body_indexes
+        
         # Initialize motion buffer
-        self.motion_buffer = self.MotionBuffer()
+        self.motion_buffer = self.MotionBuffer(self._body_indexes)
         
         # Motion metadata (will be populated in _preload_and_concatenate)
         self.motion_lengths: torch.Tensor  # [num_motions], length of each motion
@@ -91,7 +111,7 @@ class Motion_Dataloader:
         # Load all motions and concatenate into single tensors
         self._preload_and_concatenate()
         
-        print(f"[Motion_Dataloader] Initialization complete. Total frames: {self.motion_buffer.joint_pos.shape[0]}")
+        print(f"[Motion_Dataloader] Initialization complete. Total frames: {self.time_step_total}")
     
     def _preload_and_concatenate(self):
         """Preload all motions and concatenate into single tensors with offset tracking.
@@ -130,10 +150,10 @@ class Motion_Dataloader:
         # Concatenate all sequences into motion buffer
         self.motion_buffer.joint_pos = torch.cat(data_lists['joint_pos'], dim=0)
         self.motion_buffer.joint_vel = torch.cat(data_lists['joint_vel'], dim=0)
-        self.motion_buffer.body_pos_w = torch.cat(data_lists['body_pos_w'], dim=0)
-        self.motion_buffer.body_quat_w = torch.cat(data_lists['body_quat_w'], dim=0)
-        self.motion_buffer.body_lin_vel_w = torch.cat(data_lists['body_lin_vel_w'], dim=0)
-        self.motion_buffer.body_ang_vel_w = torch.cat(data_lists['body_ang_vel_w'], dim=0)
+        self.motion_buffer._body_pos_w = torch.cat(data_lists['body_pos_w'], dim=0)
+        self.motion_buffer._body_quat_w = torch.cat(data_lists['body_quat_w'], dim=0)
+        self.motion_buffer._body_lin_vel_w = torch.cat(data_lists['body_lin_vel_w'], dim=0)
+        self.motion_buffer._body_ang_vel_w = torch.cat(data_lists['body_ang_vel_w'], dim=0)
         
         # Compute offsets for each motion (cumulative sum of lengths)
         self.motion_lengths = torch.tensor(lengths, dtype=torch.long, device=self.device)  # [num_motions]
@@ -150,6 +170,7 @@ class Motion_Dataloader:
         
         print(f"[Motion_Dataloader] Concatenated tensors:")
         print(f"  joint_pos: {self.motion_buffer.joint_pos.shape}")
+        print(f"  joint_vel: {self.motion_buffer.joint_vel.shape}")
         print(f"  body_pos_w: {self.motion_buffer.body_pos_w.shape}")
         print(f"  total_frames: {self.time_step_total}")
         print(f"  motion_lengths: {self.motion_lengths.shape}, range: [{self.motion_lengths.min()}, {self.motion_lengths.max()}]")
@@ -162,11 +183,6 @@ class Motion_Dataloader:
     def get_motion_fps(self, motion_id: int) -> float:
         """Get FPS of a specific motion."""
         return self.motion_fps[motion_id].item()
-    
-    @property
-    def time_step_total(self) -> int:
-        """Get total number of time steps (frames) in the concatenated buffer."""
-        return self.time_step_total
     
     def sample(self, n: int, weights: torch.Tensor | list | None = None) -> torch.Tensor:
         """Sample n motion indices with optional weights.
