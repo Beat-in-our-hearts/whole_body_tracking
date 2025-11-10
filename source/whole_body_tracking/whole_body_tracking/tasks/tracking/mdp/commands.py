@@ -821,6 +821,10 @@ class MultiMotionCommandCfg(CommandTermCfg):
     adaptive_alpha: float = 0.001
     """EMA smoothing factor for bin failure counts."""
 
+    # Evaluation-specific parameters
+    eval_target_attempts: int = 128
+    """Number of evaluation attempts per motion (used by EvalMultiMotionCommand)."""
+
     # Visualization
     anchor_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/pose")
     anchor_visualizer_cfg.markers["frame"].scale = (0.2, 0.2, 0.2)
@@ -846,153 +850,118 @@ class EvalMultiMotionCommand(MultiMotionCommand):
         super().__init__(cfg, env)
         
         # ============ Evaluation-specific tracking ============
-        num_motions = len(self.dataset)
+        self.num_motions = len(self.dataset)
         
         # Track evaluation progress for each motion
-        self.eval_motion_attempt_count = torch.zeros(num_motions, dtype=torch.long, device=self.device)
-        self.eval_motion_success_count = torch.zeros(num_motions, dtype=torch.long, device=self.device)
-        self.eval_motion_failure_count = torch.zeros(num_motions, dtype=torch.long, device=self.device)
-        self.eval_motion_total_steps = torch.zeros(num_motions, dtype=torch.float, device=self.device)
-        
+        self.eval_motion_attempt_count = torch.zeros(self.num_motions, dtype=torch.long, device=self.device)
+        self.eval_motion_success_count = torch.zeros(self.num_motions, dtype=torch.long, device=self.device)
+        self.eval_motion_failure_count = torch.zeros(self.num_motions, dtype=torch.long, device=self.device)
+        self.eval_motion_success_steps = torch.zeros(self.num_motions, dtype=torch.float, device=self.device)
+        self.eval_motion_failure_steps = torch.zeros(self.num_motions, dtype=torch.float, device=self.device)
+
         print(f"[EvalMultiMotionCommand] Initialized for evaluation")
-        print(f"  Number of motions: {num_motions}")
+        print(f"  Number of motions: {self.num_motions}")
         print(f"  Target attempts per motion: {cfg.eval_target_attempts}")
         print(f"  Total environments: {self.num_envs}")
     
-    def _compute_sampling_weights(self, num_samples: int) -> torch.Tensor:
-        """Compute sampling weights based on remaining evaluation attempts.
+    def _adaptive_sampling(self, env_ids: Sequence[int]):
+        """Evaluation-specific adaptive sampling.
         
-        Prioritizes motions that need more evaluation attempts:
-        - Weight = (target_attempts - current_attempts) + epsilon
-        - Epsilon (1e-4) ensures completed motions still have minimal sampling probability
+        Unlike training mode (which samples global bins), evaluation mode:
+        1. Tracks success/failure before resampling
+        2. Samples motions directly based on remaining attempts (not bins)
+        3. Always resets time_steps to 0 (start from motion beginning)
         
-        Returns:
-            weights: [num_motions] tensor of unnormalized sampling weights
+        This ensures balanced evaluation coverage across all motions.
         """
-        remaining_attempts = self.cfg.eval_target_attempts - self.eval_motion_attempt_count
-        
-        # Add epsilon to avoid zero weights
-        weights = remaining_attempts.float() + 1e-4
-        
-        # Clamp to ensure non-negative
-        weights = torch.clamp(weights, min=1e-4)
-        
-        return weights
-    
-    def _resample_command(self, env_ids: Sequence[int]):
-        """Resample with evaluation tracking and forced timestep=0 reset.
-        
-        Tracks completion before resampling:
-        - If terminated (collision/fall) → record failure
-        - If time_steps >= motion_length → record success
-        
-        Then resamples motion and resets timestep to 0 for all resampled envs.
-        """
-        if len(env_ids) == 0:
-            return
-        
         env_ids_tensor = torch.tensor(env_ids, dtype=torch.long, device=self.device) \
             if not isinstance(env_ids, torch.Tensor) else env_ids
         num_envs = len(env_ids)
         
         # ============ Track completion BEFORE resampling (Vectorized) ============
         # Get motion properties for all environments
-        motion_ids_batch = self.motion_indices[env_ids_tensor]  # [num_envs]
-        current_timesteps_batch = self.time_steps[env_ids_tensor]  # [num_envs]
-        motion_lengths_batch = self.dataloader.motion_lengths[motion_ids_batch]  # [num_envs]
+        motion_ids_batch = self.motion_ids[env_ids_tensor]
+        current_timesteps_batch = self.time_steps[env_ids_tensor]
+        motion_lengths_batch = self.dataloader.motion_lengths[motion_ids_batch]
         
         # Check termination reasons (vectorized)
-        is_failed_batch = self._env.termination_manager.terminated[env_ids_tensor]  # [num_envs]
-        is_motion_complete_batch = current_timesteps_batch >= (motion_lengths_batch - 1)  # [num_envs]
+        is_failed_batch = self._env.termination_manager.terminated[env_ids_tensor]
+        is_motion_complete_batch = current_timesteps_batch >= (motion_lengths_batch - 1)
 
-        # Avoid false positives at initialization: only count envs that have started (episode_length_buf > 0)
-        # ManagerBasedRLEnv.reset clears episode_length_buf for reset envs, so freshly-reset envs won't be counted.
+        # Avoid false positives at initialization: only count envs that have started
         episode_lengths = self._env.episode_length_buf[env_ids_tensor]
         has_started_mask = episode_lengths > 0
 
         # Separate failed and completed environments
-        # Apply started-mask to avoid initialization misclassification
-        failed_mask = has_started_mask & is_failed_batch & ~is_motion_complete_batch  # Failed before completion
-        completed_mask = has_started_mask & is_motion_complete_batch & ~is_failed_batch  # Successfully completed
+        failed_mask = has_started_mask & is_failed_batch & ~is_motion_complete_batch
+        completed_mask = has_started_mask & is_motion_complete_batch & ~is_failed_batch
         
-        # Update failure counts using scatter_add (vectorized)
+        # Update failure counts using bincount (vectorized)
         if failed_mask.any():
             failed_motion_ids = motion_ids_batch[failed_mask]
-            self.eval_motion_failure_count.scatter_add_(
-                0,
-                failed_motion_ids,
-                torch.ones_like(failed_motion_ids, dtype=torch.long)
+            failed_timesteps = current_timesteps_batch[failed_mask]
+            
+            self.eval_motion_failure_count += torch.bincount(
+                failed_motion_ids, minlength=self.num_motions
             )
-            self.eval_motion_attempt_count.scatter_add_(
-                0,
-                failed_motion_ids,
-                torch.ones_like(failed_motion_ids, dtype=torch.long)
+            self.eval_motion_attempt_count += torch.bincount(
+                failed_motion_ids, minlength=self.num_motions
+            )
+            # Track steps reached before failure for completion rate calculation
+            self.eval_motion_failure_steps += torch.bincount(
+                failed_motion_ids, weights=failed_timesteps.float(), minlength=self.num_motions
             )
         
-        # Update success counts using scatter_add (vectorized)
+        # Update success counts using bincount (vectorized)
         if completed_mask.any():
             completed_motion_ids = motion_ids_batch[completed_mask]
             completed_timesteps = current_timesteps_batch[completed_mask]
             
-            self.eval_motion_success_count.scatter_add_(
-                0,
-                completed_motion_ids,
-                torch.ones_like(completed_motion_ids, dtype=torch.long)
+            self.eval_motion_success_count += torch.bincount(
+                completed_motion_ids, minlength=self.num_motions
             )
-            self.eval_motion_attempt_count.scatter_add_(
-                0,
-                completed_motion_ids,
-                torch.ones_like(completed_motion_ids, dtype=torch.long)
+            self.eval_motion_attempt_count += torch.bincount(
+                completed_motion_ids, minlength=self.num_motions
             )
-            self.eval_motion_total_steps.scatter_add_(
-                0,
-                completed_motion_ids,
-                completed_timesteps.float()
+            # Track steps completed in successful attempts
+            self.eval_motion_success_steps += torch.bincount(
+                completed_motion_ids, weights=completed_timesteps.float(), minlength=self.num_motions
             )
         
-        # ============ Track bin failures for adaptive sampling (optional) ============
+        # ============ Track bin failures for global bins (optional, for analysis) ============
         episode_failed = self._env.termination_manager.terminated[env_ids_tensor]
-        # Only consider failures for envs that have started (protects against reset-time artifacts)
         episode_failed = episode_failed & (self._env.episode_length_buf[env_ids_tensor] > 0)
+        
         if torch.any(episode_failed):
-            failed_mask = episode_failed
-            failed_env_ids = env_ids_tensor[failed_mask]
-            failed_motion_indices = self.motion_indices[failed_env_ids]
-            failed_time_steps = self.time_steps[failed_env_ids]
-            failed_motion_lengths = self.dataloader.motion_lengths[failed_motion_indices]
-            failed_bin_counts = self.motion_bin_counts[failed_motion_indices]
+            failed_envs = env_ids_tensor[episode_failed]
+            failed_global_time_steps = self.global_time_steps[failed_envs]
+            failed_bins = (failed_global_time_steps.float() / self.bin_size).long()
+            failed_bins = torch.clamp(failed_bins, 0, self.bin_count - 1)
             
-            bin_indices_raw = (failed_time_steps * failed_bin_counts) // torch.clamp(failed_motion_lengths, min=1)
-            current_bin_indices = torch.minimum(
-                torch.maximum(bin_indices_raw, torch.tensor(0, device=self.device)), 
-                failed_bin_counts - 1
-            )
-            
-            global_bin_indices = self.motion_bin_offsets[failed_motion_indices] + current_bin_indices
-            self.motion_current_bin_failed.scatter_add_(
-                0, 
-                global_bin_indices, 
-                torch.ones_like(global_bin_indices, dtype=torch.float)
-            )
+            self._current_bin_failed += torch.bincount(
+                failed_bins, minlength=self.bin_count
+            ).float()
         
         # ============ Sample new motions using remaining-attempts weights ============
-        weights = self._compute_sampling_weights(num_envs)
-        sampled_indices = self.dataloader.sample(n=num_envs, weights=weights)
-        self.motion_indices[env_ids_tensor] = sampled_indices
+        # Compute weights: prioritize motions needing more attempts
+        remaining_attempts = self.cfg.eval_target_attempts - self.eval_motion_attempt_count
+        weights = remaining_attempts.float() + 1e-4  # Add epsilon to avoid zero weights
+        weights = torch.clamp(weights, min=1e-4)
+        
+        # Normalize weights for multinomial sampling
+        weights_normalized = weights / weights.sum()
+        
+        # Sample motion IDs based on remaining attempts
+        sampled_motion_ids = torch.multinomial(weights_normalized, num_envs, replacement=True)
+        
+        self.motion_ids[env_ids_tensor] = sampled_motion_ids
         
         # ============ CRITICAL: Always reset timesteps to 0 ============
         # In evaluation, we always start from the beginning of the motion
         self.time_steps[env_ids_tensor] = 0
         
-        # Initialize robot state to motion's first frame
-        self._init_robot_state(env_ids)
-        
-        # Update adaptive bin failure statistics (EMA)
-        self.motion_bin_failed_counts = (
-            self.cfg.adaptive_alpha * self.motion_current_bin_failed +
-            (1 - self.cfg.adaptive_alpha) * self.motion_bin_failed_counts
-        )
-        self.motion_current_bin_failed.zero_()
+        # Update global_time_steps based on motion_offsets
+        self.global_time_steps[env_ids_tensor] = self.dataloader.motion_offsets[sampled_motion_ids]
     
     def check_eval_complete(self) -> bool:
         """Check if all motions have reached target evaluation attempts.
@@ -1022,21 +991,29 @@ class EvalMultiMotionCommand(MultiMotionCommand):
                     'successes': int,
                     'failures': int,
                     'success_rate': float,
+                    'completion_rate': float,  # Average completion percentage (0-1)
                     'avg_steps': float,
                     'motion_length': int,
                 }
             }
         """
         results = {}
-        
-        for motion_id in range(len(self.dataset)):
+
+        for motion_id in range(self.num_motions):
             attempts = self.eval_motion_attempt_count[motion_id].item()
             successes = self.eval_motion_success_count[motion_id].item()
             failures = self.eval_motion_failure_count[motion_id].item()
-            total_steps = self.eval_motion_total_steps[motion_id].item()
+            success_steps = self.eval_motion_success_steps[motion_id].item()
+            failure_steps = self.eval_motion_failure_steps[motion_id].item()
+            motion_length = self.dataloader.motion_lengths[motion_id].item()
             
             success_rate = successes / attempts if attempts > 0 else 0.0
-            avg_steps = total_steps / successes if successes > 0 else 0.0
+            avg_success_steps = success_steps / successes if successes > 0 else 0.0
+            
+            # Completion rate: average percentage of motion completed across all attempts
+            # For successes: completed steps, for failures: steps reached before failure
+            total_completed_steps = success_steps + failure_steps
+            completion_rate = total_completed_steps / (attempts * motion_length) if attempts > 0 else 0.0
             
             motion_info = self.dataset[motion_id]
             
@@ -1046,8 +1023,9 @@ class EvalMultiMotionCommand(MultiMotionCommand):
                 'successes': successes,
                 'failures': failures,
                 'success_rate': success_rate,
-                'avg_steps': avg_steps,
-                'motion_length': self.dataloader.motion_lengths[motion_id].item(),
+                'completion_rate': completion_rate,
+                'avg_success_steps': avg_success_steps,
+                'motion_length': motion_length,
                 'quantity': motion_info['quantity'],
             }
         
@@ -1056,12 +1034,12 @@ class EvalMultiMotionCommand(MultiMotionCommand):
     def print_progress(self):
         """Print evaluation progress to console."""
         incomplete = self.get_incomplete_motions()
-        num_complete = len(self.dataset) - len(incomplete)
+        num_complete = self.num_motions - len(incomplete)
         min_attempts = self.eval_motion_attempt_count.min().item()
         max_attempts = self.eval_motion_attempt_count.max().item()
         avg_attempts = self.eval_motion_attempt_count.float().mean().item()
-        
-        print(f"[Eval Progress] {num_complete}/{len(self.dataset)} motions complete")
+
+        print(f"[Eval Progress] {num_complete}/{self.num_motions} motions complete")
         print(f"  Attempts: min={min_attempts}, max={max_attempts}, avg={avg_attempts:.1f}")
         print(f"  Incomplete motions: {len(incomplete)}")
 
