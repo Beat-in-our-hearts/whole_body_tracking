@@ -171,6 +171,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     
     step_count = 0
     start_time = time.time()
+    last_progress_time = start_time
     
     with torch.inference_mode():
         while not motion_command.check_eval_complete():
@@ -184,10 +185,35 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             
             # Print progress periodically
             if step_count % args_cli.progress_interval == 0:
-                elapsed = time.time() - start_time
+                current_time = time.time()
+                elapsed = current_time - start_time
+                interval_elapsed = current_time - last_progress_time
                 steps_per_sec = step_count / elapsed
+                interval_steps_per_sec = args_cli.progress_interval / interval_elapsed
+                
+                # Get current statistics
+                total_completed = motion_command.eval_motion_completed_count.sum().item()
+                total_successes = motion_command.eval_motion_success_count.sum().item()
+                total_failures = motion_command.eval_motion_failure_count.sum().item()
+                current_success_rate = total_successes / total_completed if total_completed > 0 else 0.0
+                
+                print(f"\n[Step {step_count}] Elapsed: {elapsed:.1f}s")
+                print(f"  Rate: {steps_per_sec:.1f} steps/s (interval: {interval_steps_per_sec:.1f} steps/s)")
+                print(f"  Total completed: {total_completed} (successes: {total_successes}, failures: {total_failures})")
+                print(f"  Current success rate: {current_success_rate:.2%}")
                 motion_command.print_progress()
-                print(f"  Steps: {step_count}, Rate: {steps_per_sec:.1f} steps/s\n")
+                
+                # Estimate remaining time
+                incomplete_motions = len(motion_command.get_incomplete_motions())
+                avg_completed = motion_command.eval_motion_completed_count.float().mean().item()
+                remaining_completed = incomplete_motions * (args_cli.num_repeats - avg_completed)
+                if total_completed > 0:
+                    avg_steps_per_completed = step_count / total_completed
+                    estimated_remaining_steps = remaining_completed * avg_steps_per_completed
+                    estimated_remaining_time = estimated_remaining_steps / steps_per_sec
+                    print(f"  Estimated remaining time: {estimated_remaining_time / 60:.1f} minutes\n")
+                
+                last_progress_time = current_time
     
     # ============ Step 6: Collect and save results ============
     print(f"\n{'='*80}")
@@ -204,30 +230,53 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     
     # Print summary statistics
     success_rates = [r['success_rate'] for r in results.values()]
+    completion_rates = [r['completion_rate'] for r in results.values()]
     avg_success_rate = sum(success_rates) / len(success_rates)
+    avg_completion_rate = sum(completion_rates) / len(completion_rates)
+    
+    total_completed = sum(r['completed'] for r in results.values())
+    total_successes = sum(r['successes'] for r in results.values())
+    total_failures = sum(r['failures'] for r in results.values())
     
     print(f"\nOverall Statistics:")
     print(f"  Total motions: {len(results)}")
+    print(f"  Total completed: {total_completed}")
+    print(f"  Total successes: {total_successes}")
+    print(f"  Total failures: {total_failures}")
     print(f"  Average success rate: {avg_success_rate:.2%}")
+    print(f"  Average completion rate: {avg_completion_rate:.2%}")
     print(f"  Min success rate: {min(success_rates):.2%}")
     print(f"  Max success rate: {max(success_rates):.2%}")
     
-    # Save to CSV
-    output_path = args_cli.output
-    if output_path is None:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = f"eval_results_{timestamp}.csv"
+    # Find best and worst performing motions
+    sorted_by_success = sorted(results.items(), key=lambda x: x[1]['success_rate'], reverse=True)
+    print(f"\nTop 5 Best Performing Motions:")
+    for i, (motion_id, result) in enumerate(sorted_by_success[:5], 1):
+        print(f"  {i}. {result['motion_name']}: {result['success_rate']:.2%} ({result['successes']}/{result['completed']})")
     
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    print(f"\nTop 5 Worst Performing Motions:")
+    for i, (motion_id, result) in enumerate(sorted_by_success[-5:][::-1], 1):
+        print(f"  {i}. {result['motion_name']}: {result['success_rate']:.2%} ({result['successes']}/{result['completed']})")
+    
+    
+    # Save to CSV
+    if args_cli.output is None:
+        # Save to log_dir/eval/ folder
+        eval_dir = Path(log_dir) / "eval"
+        eval_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = eval_dir / f"eval_results_{timestamp}.csv"
+    else:
+        output_path = Path(args_cli.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
     
     print(f"\nSaving results to {output_path}...")
     
     with open(output_path, 'w', newline='') as csvfile:
         fieldnames = [
             'motion_id', 'motion_name', 'quantity',
-            'attempts', 'successes', 'failures', 'success_rate',
-            'avg_steps', 'motion_length'
+            'completed', 'successes', 'failures', 
+            'success_rate', 'completion_rate', 'motion_length'
         ]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         
@@ -237,15 +286,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 'motion_id': motion_id,
                 'motion_name': result['motion_name'],
                 'quantity': result['quantity'],
-                'attempts': result['attempts'],
+                'completed': result['completed'],
                 'successes': result['successes'],
                 'failures': result['failures'],
                 'success_rate': f"{result['success_rate']:.4f}",
-                'avg_steps': f"{result['avg_steps']:.2f}",
+                'completion_rate': f"{result['completion_rate']:.4f}",
                 'motion_length': result['motion_length'],
             })
     
     print(f"Results saved successfully!")
+    print(f"  Path: {output_path.absolute()}")
+    print(f"  Rows: {len(results)}")
+    
     
     # Close environment
     env.close()
