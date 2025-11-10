@@ -57,6 +57,7 @@ class G1FlatMultiTrackingEnvCfg(MultiTrackingEnvCfg):
         self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.actions.joint_pos.scale = G1_ACTION_SCALE
         self.commands.motion.robot_name = "g1"
+        self.commands.motion.use_adaptive = True
         self.commands.motion.dataset_dirs = [os.path.join(DATASETS_DIR, "LAFAN1_Retargeting_Dataset")]
         self.commands.motion.anchor_body_name = "torso_link"
         self.commands.motion.body_names = [
