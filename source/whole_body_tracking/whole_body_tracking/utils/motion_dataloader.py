@@ -5,7 +5,6 @@ and efficient vectorized batch indexing for multi-motion tracking in
 reinforcement learning environments.
 """
 
-from collections.abc import Sequence
 import torch
 
 from whole_body_tracking.utils.motion_dataset import Motion_Dataset
@@ -18,17 +17,17 @@ class Motion_Dataloader:
     
     Args:
         dataset: Motion_Dataset instance
-        body_indexes: Indices of bodies to track in motions
         device: Device to load tensors on
         
     Example:
         >>> dataset = Motion_Dataset(...)
-        >>> dataloader = Motion_Dataloader(dataset, body_indexes=[0, 1, 2])
+        >>> dataloader = Motion_Dataloader(dataset)
         >>> 
-        >>> # Vectorized batch indexing (4096 envs)
-        >>> motion_ids = torch.randint(0, 40, (4096,))
-        >>> time_steps = torch.randint(0, 100, (4096,))
-        >>> joint_pos = dataloader.batch_index(motion_ids, time_steps, 'joint_pos')
+        >>> # Direct buffer access with global indexing
+        >>> motion_ids = torch.tensor([0, 1, 0, 2])
+        >>> time_steps = torch.tensor([10, 20, 15, 5])
+        >>> global_indices = dataloader.motion_offsets[motion_ids] + time_steps
+        >>> joint_pos = dataloader.motion_buffer.joint_pos[global_indices]
         >>> 
         >>> # Uniform sampling
         >>> indices = dataloader.sample(n=10)
@@ -38,30 +37,60 @@ class Motion_Dataloader:
         >>> indices = dataloader.sample(n=10, weights=weights)
     """
     
+    class MotionBuffer:
+        """Internal class for storing concatenated motion data tensors.
+        
+        This class encapsulates all motion data in a single contiguous memory layout
+        for efficient GPU-accelerated batch indexing.
+        
+        Attributes:
+            joint_pos: [total_frames, num_joints] - Joint positions
+            joint_vel: [total_frames, num_joints] - Joint velocities
+            body_pos_w: [total_frames, num_bodies, 3] - Body positions (world frame)
+            body_quat_w: [total_frames, num_bodies, 4] - Body quaternions (world frame)
+            body_lin_vel_w: [total_frames, num_bodies, 3] - Body linear velocities
+            body_ang_vel_w: [total_frames, num_bodies, 3] - Body angular velocities
+        """
+        
+        def __init__(self):
+            """Initialize empty motion buffer."""
+            self.joint_pos: torch.Tensor | None = None
+            self.joint_vel: torch.Tensor | None = None
+            self.body_pos_w: torch.Tensor | None = None
+            self.body_quat_w: torch.Tensor | None = None
+            self.body_lin_vel_w: torch.Tensor | None = None
+            self.body_ang_vel_w: torch.Tensor | None = None
+
+    
     def __init__(
         self,
         dataset: Motion_Dataset,
-        body_indexes: Sequence[int],
         device: str = "cuda"
     ):
         """Initialize the dataloader with concatenated sequences.
         
         Args:
             dataset: Motion_Dataset instance
-            body_indexes: Body indices to track
             device: Device to load tensors on
         """
         self.dataset = dataset
-        self.body_indexes = body_indexes
         self.device = device
         self.num_motions = len(dataset)
+        
+        # Initialize motion buffer
+        self.motion_buffer = self.MotionBuffer()
+        
+        # Motion metadata (will be populated in _preload_and_concatenate)
+        self.motion_lengths: torch.Tensor  # [num_motions], length of each motion
+        self.motion_offsets: torch.Tensor  # [num_motions], starting index of each motion
+        self.motion_fps: torch.Tensor      # [num_motions], FPS of each motion
         
         print(f"[Motion_Dataloader] Loading and concatenating {self.num_motions} motions...")
         
         # Load all motions and concatenate into single tensors
         self._preload_and_concatenate()
         
-        print(f"[Motion_Dataloader] Initialization complete. Total frames: {self.motion_buffer['joint_pos'].shape[0]}")
+        print(f"[Motion_Dataloader] Initialization complete. Total frames: {self.motion_buffer.joint_pos.shape[0]}")
     
     def _preload_and_concatenate(self):
         """Preload all motions and concatenate into single tensors with offset tracking.
@@ -97,18 +126,13 @@ class Motion_Dataloader:
             lengths.append(sample["length"])
             fps_list.append(sample["fps"])
         
-        # Concatenate all sequences along time dimension (axis 0)
-        self.motion_buffer = {
-            key: torch.cat(data_list, dim=0)
-            for key, data_list in data_lists.items()
-        }
-        # motion_buffer contains:
-        #   'joint_pos': [sum_T, num_joints]
-        #   'joint_vel': [sum_T, num_joints]
-        #   'body_pos_w': [sum_T, num_bodies, 3]
-        #   'body_quat_w': [sum_T, num_bodies, 4]
-        #   'body_lin_vel_w': [sum_T, num_bodies, 3]
-        #   'body_ang_vel_w': [sum_T, num_bodies, 3]
+        # Concatenate all sequences into motion buffer
+        self.motion_buffer.joint_pos = torch.cat(data_lists['joint_pos'], dim=0)
+        self.motion_buffer.joint_vel = torch.cat(data_lists['joint_vel'], dim=0)
+        self.motion_buffer.body_pos_w = torch.cat(data_lists['body_pos_w'], dim=0)
+        self.motion_buffer.body_quat_w = torch.cat(data_lists['body_quat_w'], dim=0)
+        self.motion_buffer.body_lin_vel_w = torch.cat(data_lists['body_lin_vel_w'], dim=0)
+        self.motion_buffer.body_ang_vel_w = torch.cat(data_lists['body_ang_vel_w'], dim=0)
         
         # Compute offsets for each motion (cumulative sum of lengths)
         self.motion_lengths = torch.tensor(lengths, dtype=torch.long, device=self.device)  # [num_motions]
@@ -121,90 +145,17 @@ class Motion_Dataloader:
         self.motion_fps = torch.tensor(fps_list, dtype=torch.float32, device=self.device)
         
         print(f"[Motion_Dataloader] Concatenated tensors:")
-        print(f"  joint_pos: {self.motion_buffer['joint_pos'].shape}")
-        print(f"  body_pos_w: {self.motion_buffer['body_pos_w'].shape}")
+        print(f"  joint_pos: {self.motion_buffer.joint_pos.shape}")
+        print(f"  body_pos_w: {self.motion_buffer.body_pos_w.shape}")
         print(f"  motion_lengths: {self.motion_lengths.shape}, range: [{self.motion_lengths.min()}, {self.motion_lengths.max()}]")
         print(f"  motion_offsets: {self.motion_offsets.shape}")
     
-    def batch_index(
-        self,
-        motion_ids: torch.Tensor,
-        time_steps: torch.Tensor,
-        data_key: str,
-    ) -> torch.Tensor:
-        """Vectorized batch indexing for multi-environment motion data.
-        
-        This is the core high-performance method that replaces loops with
-        pure tensor operations for GPU acceleration.
-        
-        Args:
-            motion_ids: [N] tensor, motion index for each environment (0 to num_motions-1)
-            time_steps: [N] tensor, current time step for each environment
-            data_key: Key of data to retrieve, one of:
-                - 'joint_pos': Joint positions
-                - 'joint_vel': Joint velocities
-                - 'body_pos_w': Body positions (world frame)
-                - 'body_quat_w': Body quaternions (world frame)
-                - 'body_lin_vel_w': Body linear velocities (world frame)
-                - 'body_ang_vel_w': Body angular velocities (world frame)
-        
-        Returns:
-            Tensor of shape [N, ...] containing the requested data for each environment
-        
-        Example:
-            >>> motion_ids = torch.tensor([0, 1, 0, 2], device='cuda')  # 4 envs
-            >>> time_steps = torch.tensor([10, 20, 15, 5], device='cuda')
-            >>> joint_pos = dataloader.batch_index(motion_ids, time_steps, 'joint_pos')
-            >>> # joint_pos.shape = [4, num_joints]
-        """
-        # Safety: clamp time_steps to valid range for each motion
-        max_time_steps = self.motion_lengths[motion_ids] - 1  # [N]
-        # Use torch.clamp with tensor min/max (element-wise clamping)
-        clamped_time_steps = torch.clamp(time_steps, min=torch.tensor(0, device=time_steps.device))
-        clamped_time_steps = torch.minimum(clamped_time_steps, max_time_steps)
-        
-        # Compute global indices: offsets[motion_id] + time_step
-        batch_offsets = self.motion_offsets[motion_ids]      # [N]
-        global_indices = batch_offsets + clamped_time_steps  # [N]
-        
-        # Select data tensor from motion buffer
-        if data_key not in self.motion_buffer:
-            raise ValueError(
-                f"Unknown data_key: {data_key}. "
-                f"Available keys: {list(self.motion_buffer.keys())}"
-            )
-        
-        data = self.motion_buffer[data_key]
-        
-        # Advanced indexing: data[global_indices]
-        result = data[global_indices]  # [N, ...]
-        
-        # Filter body_indexes for body-related data
-        if data_key.startswith('body_'):
-            result = result[:, self.body_indexes]  # [N, num_tracked_bodies, ...]
-        
-        return result
-    
     def get_motion_length(self, motion_id: int) -> int:
-        """Get length of a specific motion.
-        
-        Args:
-            motion_id: Index of motion
-            
-        Returns:
-            Number of frames in the motion
-        """
+        """Get length of a specific motion."""
         return self.motion_lengths[motion_id].item()
     
     def get_motion_fps(self, motion_id: int) -> float:
-        """Get FPS of a specific motion.
-        
-        Args:
-            motion_id: Index of motion
-            
-        Returns:
-            FPS value
-        """
+        """Get FPS of a specific motion."""
         return self.motion_fps[motion_id].item()
     
     def sample(self, n: int, weights: torch.Tensor | list | None = None) -> torch.Tensor:
@@ -297,10 +248,8 @@ if __name__ == "__main__":
     
     # Create dataloader
     print("\nCreating dataloader...")
-    body_indexes = list(range(10))  # Track first 10 bodies for testing
     dataloader = Motion_Dataloader(
         dataset=dataset,
-        body_indexes=body_indexes,
         device=args.device,
     )
     
@@ -318,14 +267,18 @@ if __name__ == "__main__":
     print(f"Sampled quantities: {quantities}")
     
     # Test batch indexing
-    print("\n=== Test 3: Batch Indexing ===")
+    print("\n=== Test 3: Direct Buffer Access ===")
     motion_ids = indices[:3]
     time_steps = torch.tensor([10, 20, 15], device=args.device)
     
-    joint_pos = dataloader.batch_index(motion_ids, time_steps, 'joint_pos')
-    body_pos_w = dataloader.batch_index(motion_ids, time_steps, 'body_pos_w')
+    # Compute global indices
+    global_indices = dataloader.motion_offsets[motion_ids] + time_steps
     
-    print(f"Batch indexed 3 motions:")
+    # Direct buffer access
+    joint_pos = dataloader.motion_buffer.joint_pos[global_indices]
+    body_pos_w = dataloader.motion_buffer.body_pos_w[global_indices]
+    
+    print(f"Direct buffer access for 3 motions:")
     print(f"  joint_pos shape: {joint_pos.shape}")
     print(f"  body_pos_w shape: {body_pos_w.shape}")
     
@@ -341,22 +294,27 @@ if __name__ == "__main__":
     
     # Test 4096 env batch indexing
     # Elapsed time for 4096 env batch indexing: 7.983456134796143 ms
-    print("\n=== Test 5: 4096 Env Batch Indexing ===")
+    print("\n=== Test 5: 4096 Env Direct Buffer Access ===")
     num_envs = 4096
     start_time = torch.cuda.Event(enable_timing=True)
     end_time = torch.cuda.Event(enable_timing=True)
     start_time.record()
     motion_ids = dataloader.sample(n=num_envs)
     time_steps = torch.randint(0, 100, (num_envs,), device=args.device)
-    joint_pos = dataloader.batch_index(motion_ids, time_steps, 'joint_pos')
-    joint_vel = dataloader.batch_index(motion_ids, time_steps, 'joint_vel')
-    body_pos_w = dataloader.batch_index(motion_ids, time_steps, 'body_pos_w')
-    body_quat_w = dataloader.batch_index(motion_ids, time_steps, 'body_quat_w')
-    body_lin_vel_w = dataloader.batch_index(motion_ids, time_steps, 'body_lin_vel_w')
-    body_ang_vel_w = dataloader.batch_index(motion_ids, time_steps, 'body_ang_vel_w')
+    
+    # Compute global indices
+    global_indices = dataloader.motion_offsets[motion_ids] + time_steps
+    
+    # Direct buffer access
+    joint_pos = dataloader.motion_buffer.joint_pos[global_indices]
+    joint_vel = dataloader.motion_buffer.joint_vel[global_indices]
+    body_pos_w = dataloader.motion_buffer.body_pos_w[global_indices]
+    body_quat_w = dataloader.motion_buffer.body_quat_w[global_indices]
+    body_lin_vel_w = dataloader.motion_buffer.body_lin_vel_w[global_indices]
+    body_ang_vel_w = dataloader.motion_buffer.body_ang_vel_w[global_indices]
     
     end_time.record()
     torch.cuda.synchronize()
     elapsed_time = start_time.elapsed_time(end_time)
-    print(f"Elapsed time for 4096 env batch indexing: {elapsed_time} ms")
+    print(f"Elapsed time for 4096 env direct buffer access: {elapsed_time} ms")
     print(f"  joint_pos shape: {joint_pos.shape}")
