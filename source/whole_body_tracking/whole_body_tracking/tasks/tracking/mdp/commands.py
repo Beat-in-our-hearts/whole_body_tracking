@@ -491,22 +491,22 @@ class MultiMotionCommand(CommandTerm):
     @property
     def anchor_pos_w(self) -> torch.Tensor:
         """Target anchor body position in world frame."""
-        return self.body_pos_w[self.global_time_steps, self.motion_anchor_body_index] + self._env.scene.env_origins
+        return self.dataloader.motion_buffer.body_pos_w[self.global_time_steps, self.motion_anchor_body_index] + self._env.scene.env_origins
 
     @property
     def anchor_quat_w(self) -> torch.Tensor:
         """Target anchor body quaternion in world frame."""
-        return self.body_quat_w[self.global_time_steps, self.motion_anchor_body_index]
+        return self.dataloader.motion_buffer.body_quat_w[self.global_time_steps, self.motion_anchor_body_index]
 
     @property
     def anchor_lin_vel_w(self) -> torch.Tensor:
         """Target anchor body linear velocity in world frame."""
-        return self.body_lin_vel_w[self.global_time_steps, self.motion_anchor_body_index]
+        return self.dataloader.motion_buffer.body_lin_vel_w[self.global_time_steps, self.motion_anchor_body_index]
 
     @property
     def anchor_ang_vel_w(self) -> torch.Tensor:
         """Target anchor body angular velocity in world frame."""
-        return self.body_ang_vel_w[self.global_time_steps, self.motion_anchor_body_index]
+        return self.dataloader.motion_buffer.body_ang_vel_w[self.global_time_steps, self.motion_anchor_body_index]
 
     @property
     def robot_joint_pos(self) -> torch.Tensor:
@@ -583,11 +583,18 @@ class MultiMotionCommand(CommandTerm):
         4. Uniform sample within selected bins to get global timesteps
         5. Reverse lookup: global_timestep → motion_id + local time_step
         """
+        # Ensure env_ids is a tensor
+        if isinstance(env_ids, torch.Tensor):
+            env_ids_tensor = env_ids
+        else:
+            env_ids_tensor = torch.tensor(env_ids, dtype=torch.long, device=self.device)
+        
         # === Step 1: Update bin failure statistics ===
-        episode_failed = self._env.termination_manager.terminated[env_ids]
+        episode_failed = self._env.termination_manager.terminated[env_ids_tensor]
         
         if torch.any(episode_failed):
-            failed_envs = torch.tensor(env_ids, device=self.device)[episode_failed]
+            # Directly use boolean indexing on tensor
+            failed_envs = env_ids_tensor[episode_failed]
             failed_global_time_steps = self.global_time_steps[failed_envs]
             failed_bins = (failed_global_time_steps.float() / self.bin_size).long()
             failed_bins = torch.clamp(failed_bins, 0, self.bin_count - 1)
@@ -609,7 +616,7 @@ class MultiMotionCommand(CommandTerm):
         sampling_probabilities = sampling_probabilities / sampling_probabilities.sum()
         
         # === Step 3: Sample global bins ===
-        sampled_global_bins = torch.multinomial(sampling_probabilities, len(env_ids), replacement=True)  # [M]
+        sampled_global_bins = torch.multinomial(sampling_probabilities, len(env_ids_tensor), replacement=True)  # [M]
         
         # === Step 4: Uniform sample within bins to get global timesteps ===
         bin_starts = sampled_global_bins.float() * self.bin_size  # [M]
@@ -619,23 +626,24 @@ class MultiMotionCommand(CommandTerm):
         )  # [M]
 
         # Uniform sample within each bin
-        random_offsets = sample_uniform(0.0, 1.0, (len(env_ids),), device=self.device)
-        self.global_time_steps[env_ids] = (bin_starts + random_offsets * (bin_ends - bin_starts)).long()
+        random_offsets = sample_uniform(0.0, 1.0, (len(env_ids_tensor),), device=self.device)
+        self.global_time_steps[env_ids_tensor] = (bin_starts + random_offsets * (bin_ends - bin_starts)).long()
         
         # === Step 5: Reverse lookup motion_id and time_steps ===
         new_motion_ids = torch.searchsorted(
             self.dataloader.motion_offsets,
-            self.global_time_steps[env_ids].float(),
+            self.global_time_steps[env_ids_tensor].float(),
             right=False
         ) - 1
         new_motion_ids = torch.clamp(new_motion_ids, 0, self.dataloader.num_motions - 1)
         
-        new_time_steps = self.global_time_steps[env_ids] - self.dataloader.motion_offsets[new_motion_ids]
+        new_time_steps = self.global_time_steps[env_ids_tensor] - self.dataloader.motion_offsets[new_motion_ids]
         new_motion_lengths = self.dataloader.motion_lengths[new_motion_ids]
+        new_time_steps = torch.clamp(new_time_steps, min=0)
         new_time_steps = torch.minimum(new_time_steps, new_motion_lengths - 1)
         
-        self.motion_ids[env_ids] = new_motion_ids
-        self.time_steps[env_ids] = new_time_steps
+        self.motion_ids[env_ids_tensor] = new_motion_ids
+        self.time_steps[env_ids_tensor] = new_time_steps
         
         # === Metrics ===
         H = -(sampling_probabilities * (sampling_probabilities + 1e-12).log()).sum()
