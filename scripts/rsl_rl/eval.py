@@ -167,7 +167,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     print(f"{'='*80}\n")
     
     # Reset environment
-    obs, _ = env.get_observations()
+    # NOTE: fixbug for isaaclab2.3.0
+    obs = env.get_observations()
     
     step_count = 0
     start_time = time.time()
