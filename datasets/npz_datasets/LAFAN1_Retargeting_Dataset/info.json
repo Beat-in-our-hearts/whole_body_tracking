@@ -44,5 +44,17 @@
         "walk4_subject1":           1
     },
     "val": {
+        "walk1_subject1":           1,
+        "walk1_subject2":           1,
+        "walk1_subject5":           1,
+        "walk2_subject1":           1,
+        "walk2_subject3":           1,
+        "walk2_subject4":           1,
+        "walk3_subject1":           1,
+        "walk3_subject2":           1,
+        "walk3_subject3":           1,
+        "walk3_subject4":           1,
+        "walk3_subject5":           1,
+        "walk4_subject1":           1
     }
 }
