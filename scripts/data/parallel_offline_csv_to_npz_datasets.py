@@ -40,6 +40,8 @@ parser.add_argument("--output_fps", type=int, default=50, help="The fps of the o
 parser.add_argument("--recursive", "-r", action="store_true", help="Recursively search for CSV files in subdirectories.")
 parser.add_argument("--pattern", type=str, default="*.csv", help="File pattern to match (default: *.csv).")
 parser.add_argument("--num_envs", type=int, default=32, help="Number of parallel environments for processing (default: 32).")
+parser.add_argument("--preload_workers", type=int, default=8, help="Number of background workers for CSV preloading (default: 16).")
+parser.add_argument("--save_workers", type=int, default=8, help="Number of background workers for async NPZ saving (default: 16).")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -53,6 +55,9 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
+import threading
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -66,6 +71,78 @@ from isaaclab.utils.math import axis_angle_from_quat, quat_conjugate, quat_mul, 
 # Pre-defined configs
 ##
 from whole_body_tracking.robots.g1 import G1_CYLINDER_CFG
+
+
+class MotionPreloader:
+    """Background thread pool for preloading CSV files."""
+    def __init__(self, max_workers: int = 4):
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.preload_cache = {}  # csv_file -> Future[MotionLoader]
+        
+    def preload(self, csv_file: str, input_fps: int, output_fps: int, device: torch.device, frame_range):
+        """Submit a CSV file for background loading."""
+        if csv_file not in self.preload_cache:
+            future = self.executor.submit(
+                self._load_motion_worker, csv_file, input_fps, output_fps, device, frame_range
+            )
+            self.preload_cache[csv_file] = future
+    
+    def _load_motion_worker(self, csv_file: str, input_fps: int, output_fps: int, device: torch.device, frame_range):
+        """Worker function to load motion in background."""
+        try:
+            return MotionLoader(csv_file, input_fps, output_fps, device, frame_range)
+        except Exception as e:
+            return None  # Return None on error
+    
+    def get(self, csv_file: str):
+        """Get preloaded motion (blocks if not ready yet)."""
+        if csv_file in self.preload_cache:
+            future = self.preload_cache.pop(csv_file)
+            return future.result()  # Wait for completion
+        return None
+    
+    def shutdown(self):
+        """Shutdown the executor."""
+        self.executor.shutdown(wait=False)
+
+
+class AsyncFileSaver:
+    """Background thread pool for asynchronous file saving."""
+    def __init__(self, max_workers: int = 4):
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.pending_saves = []
+        
+    def save_async(self, npz_file: str, log_data: dict):
+        """Submit a file save operation to background thread."""
+        future = self.executor.submit(self._save_worker, npz_file, log_data)
+        self.pending_saves.append(future)
+        return future
+    
+    def _save_worker(self, npz_file: str, log_data: dict):
+        """Worker function to save NPZ file in background."""
+        try:
+            save_path = Path(npz_file).expanduser()
+            if save_path.suffix != ".npz":
+                save_path = save_path.with_suffix(".npz")
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            np.savez(save_path, **log_data)
+            return True
+        except Exception as e:
+            tqdm.write(f"\n[ERROR]: Failed to save {npz_file}: {e}")
+            return False
+    
+    def wait_all(self):
+        """Wait for all pending saves to complete."""
+        results = []
+        for future in self.pending_saves:
+            results.append(future.result())
+        self.pending_saves.clear()
+        return results
+    
+    def shutdown(self):
+        """Shutdown the executor and wait for all saves."""
+        self.executor.shutdown(wait=True)
 
 
 @configclass
@@ -90,14 +167,18 @@ class ReplayMotionsSceneCfg(InteractiveSceneCfg):
 
 class EnvState:
     """Tracks the state of each parallel environment."""
-    def __init__(self, env_id: int):
+    def __init__(self, env_id: int, device: torch.device, num_joints: int, num_bodies: int):
         self.env_id = env_id
+        self.device = device
+        self.num_joints = num_joints
+        self.num_bodies = num_bodies
         self.motion_loader = None
         self.current_frame = 0
         self.csv_file = None
         self.npz_file = None
         self.is_active = False
-        self.log = None
+        # Pre-allocated GPU tensors
+        self.log_tensors = None
         
     def start_new_motion(self, csv_file: str, npz_file: str, motion_loader):
         """Initialize a new motion for this environment."""
@@ -106,14 +187,19 @@ class EnvState:
         self.motion_loader = motion_loader
         self.current_frame = 0
         self.is_active = True
-        self.log = {
-            "fps": [args_cli.output_fps],
-            "joint_pos": [],
-            "joint_vel": [],
-            "body_pos_w": [],
-            "body_quat_w": [],
-            "body_lin_vel_w": [],
-            "body_ang_vel_w": [],
+        
+        # Pre-allocate GPU tensors for entire motion
+        num_frames = motion_loader.output_frames
+        num_bodies = self.num_bodies
+        
+        self.log_tensors = {
+            "fps": args_cli.output_fps,
+            "joint_pos": torch.zeros((num_frames, self.num_joints), device=self.device, dtype=torch.float32),
+            "joint_vel": torch.zeros((num_frames, self.num_joints), device=self.device, dtype=torch.float32),
+            "body_pos_w": torch.zeros((num_frames, num_bodies, 3), device=self.device, dtype=torch.float32),
+            "body_quat_w": torch.zeros((num_frames, num_bodies, 4), device=self.device, dtype=torch.float32),
+            "body_lin_vel_w": torch.zeros((num_frames, num_bodies, 3), device=self.device, dtype=torch.float32),
+            "body_ang_vel_w": torch.zeros((num_frames, num_bodies, 3), device=self.device, dtype=torch.float32),
         }
     
     def is_complete(self) -> bool:
@@ -129,7 +215,8 @@ class EnvState:
         self.csv_file = None
         self.npz_file = None
         self.is_active = False
-        self.log = None
+        # Release GPU memory
+        self.log_tensors = None
 
 
 class MotionLoader:
@@ -280,8 +367,17 @@ def run_parallel_simulator(
     """Runs the simulation loop with parallel environments."""
     num_envs = args_cli.num_envs
     
-    # Initialize environment states
-    env_states = [EnvState(i) for i in range(num_envs)]
+    # Get robot specifications
+    robot = scene["robot"]
+    num_joints = len(joint_names)
+    num_bodies = robot.data.body_pos_w.shape[1]  # Get actual body count from robot data
+    
+    # Initialize environment states with pre-allocated memory
+    env_states = [EnvState(i, sim.device, num_joints, num_bodies) for i in range(num_envs)]
+    
+    # Initialize background workers
+    motion_preloader = MotionPreloader(max_workers=args_cli.preload_workers)
+    file_saver = AsyncFileSaver(max_workers=args_cli.save_workers)
     
     # Task queue
     task_queue = list(csv_files)
@@ -290,8 +386,15 @@ def run_parallel_simulator(
     total_files = len(csv_files)
     
     # Extract scene entities
-    robot = scene["robot"]
     robot_joint_indexes = robot.find_joints(joint_names, preserve_order=True)[0]
+    
+    # Preload initial batch of files
+    print(f"[INFO]: Preloading initial batch of CSV files...")
+    for i in range(min(num_envs * 2, len(task_queue))):  # Preload 2x environments worth
+        csv_file = task_queue[i]
+        motion_preloader.preload(
+            str(csv_file), args_cli.input_fps, args_cli.output_fps, sim.device, args_cli.frame_range
+        )
     
     # Helper function to assign new task to an environment
     def assign_task(env_state: EnvState) -> bool:
@@ -303,37 +406,53 @@ def run_parallel_simulator(
         rel_path = csv_file.relative_to(input_path)
         npz_file = output_path / rel_path.with_suffix(".npz")
         
+        # Preload next file in background (look-ahead)
+        if task_queue:
+            next_idx = min(num_envs, len(task_queue) - 1)
+            if next_idx >= 0:
+                motion_preloader.preload(
+                    str(task_queue[next_idx]), args_cli.input_fps, args_cli.output_fps, sim.device, args_cli.frame_range
+                )
+        
         try:
-            motion_loader = MotionLoader(
-                motion_file=str(csv_file),
-                input_fps=args_cli.input_fps,
-                output_fps=args_cli.output_fps,
-                device=sim.device,
-                frame_range=args_cli.frame_range,
-            )
+            # Try to get preloaded motion first
+            motion_loader = motion_preloader.get(str(csv_file))
+            
+            # If not preloaded, load synchronously
+            if motion_loader is None:
+                motion_loader = MotionLoader(
+                    motion_file=str(csv_file),
+                    input_fps=args_cli.input_fps,
+                    output_fps=args_cli.output_fps,
+                    device=sim.device,
+                    frame_range=args_cli.frame_range,
+                )
+            
             env_state.start_new_motion(str(csv_file), str(npz_file), motion_loader)
             return True
         except Exception as e:
-            print(f"\n[ERROR]: Failed to load {csv_file}: {e}")
+            tqdm.write(f"\n[ERROR]: Failed to load {csv_file}: {e}")
             failed_files.append(str(csv_file))
             return False
     
     # Helper function to save completed motion
     def save_motion(env_state: EnvState):
-        """Save the logged motion data to NPZ file."""
+        """Save the logged motion data to NPZ file (async)."""
         try:
+            # Convert GPU tensors to numpy arrays - only transfer to CPU once at the end
+            log_numpy = {}
             for k in ("joint_pos", "joint_vel", "body_pos_w", "body_quat_w", "body_lin_vel_w", "body_ang_vel_w"):
-                env_state.log[k] = np.stack(env_state.log[k], axis=0)
+                # Slice to actual number of frames and convert to numpy
+                log_numpy[k] = env_state.log_tensors[k][:env_state.current_frame].cpu().numpy()
             
-            save_path = Path(env_state.npz_file).expanduser()
-            if save_path.suffix != ".npz":
-                save_path = save_path.with_suffix(".npz")
-            save_path.parent.mkdir(parents=True, exist_ok=True)
+            # fps is a single value, not a tensor
+            log_numpy["fps"] = [env_state.log_tensors["fps"]]
             
-            np.savez(save_path, **env_state.log)
+            # Submit to background saver (non-blocking)
+            file_saver.save_async(env_state.npz_file, log_numpy)
             return True
         except Exception as e:
-            print(f"\n[ERROR]: Failed to save {env_state.npz_file}: {e}")
+            tqdm.write(f"\n[ERROR]: Failed to prepare save for {env_state.npz_file}: {e}")
             failed_files.append(env_state.csv_file)
             return False
     
@@ -348,76 +467,83 @@ def run_parallel_simulator(
     
     # Main simulation loop
     while completed_count < total_files:
-        # Prepare batched data for all active environments
-        active_env_indices = []
-        root_states_batch = []
-        joint_pos_batch = []
-        joint_vel_batch = []
+        # Identify all active environments (vectorized)
+        active_mask = torch.tensor([env.is_active for env in env_states], dtype=torch.bool, device='cpu')
+        active_env_indices = torch.where(active_mask)[0].tolist()
         
-        # Collect states from all active environments
-        for env_idx, env_state in enumerate(env_states):
-            if not env_state.is_active:
-                continue
-            
-            # Get next state for this environment
-            (
-                motion_base_pos,
-                motion_base_rot,
-                motion_base_lin_vel,
-                motion_base_ang_vel,
-                motion_dof_pos,
-                motion_dof_vel,
-            ), _ = env_state.motion_loader.get_next_state()
-            
-            # Prepare root state for this environment
-            root_state = robot.data.default_root_state[env_idx:env_idx+1].clone()
-            root_state[:, :3] = motion_base_pos
-            root_state[:, :2] += scene.env_origins[env_idx:env_idx+1, :2]
-            root_state[:, 3:7] = motion_base_rot
-            root_state[:, 7:10] = motion_base_lin_vel
-            root_state[:, 10:] = motion_base_ang_vel
-            
-            # Prepare joint state for this environment
-            joint_pos = robot.data.default_joint_pos[env_idx:env_idx+1].clone()
-            joint_vel = robot.data.default_joint_vel[env_idx:env_idx+1].clone()
-            joint_pos[:, robot_joint_indexes] = motion_dof_pos
-            joint_vel[:, robot_joint_indexes] = motion_dof_vel
-            
-            # Collect for batch processing
-            active_env_indices.append(env_idx)
-            root_states_batch.append(root_state)
-            joint_pos_batch.append(joint_pos)
-            joint_vel_batch.append(joint_vel)
-            
-            # Increment frame counter
-            env_state.current_frame += 1
+        if not active_env_indices:
+            break
         
-        # Write batched data to simulation (vectorized operation)
-        if active_env_indices:
-            active_env_tensor = torch.tensor(active_env_indices, dtype=torch.int32, device=sim.device)
-            root_states_tensor = torch.cat(root_states_batch, dim=0)
-            joint_pos_tensor = torch.cat(joint_pos_batch, dim=0)
-            joint_vel_tensor = torch.cat(joint_vel_batch, dim=0)
-            
-            robot.write_root_state_to_sim(root_states_tensor, env_ids=active_env_tensor)
-            robot.write_joint_state_to_sim(joint_pos_tensor, joint_vel_tensor, env_ids=active_env_tensor)
+        # Batch collect motion states from all active environments
+        motion_states = []
+        for env_idx in active_env_indices:
+            state, _ = env_states[env_idx].motion_loader.get_next_state()
+            motion_states.append(state)
+        
+        # Unpack all states at once (vectorized)
+        motion_base_pos_list = [s[0] for s in motion_states]
+        motion_base_rot_list = [s[1] for s in motion_states]
+        motion_base_lin_vel_list = [s[2] for s in motion_states]
+        motion_base_ang_vel_list = [s[3] for s in motion_states]
+        motion_dof_pos_list = [s[4] for s in motion_states]
+        motion_dof_vel_list = [s[5] for s in motion_states]
+        
+        # Concatenate all motion data at once
+        motion_base_pos_batch = torch.cat(motion_base_pos_list, dim=0)  # [N, 3]
+        motion_base_rot_batch = torch.cat(motion_base_rot_list, dim=0)  # [N, 4]
+        motion_base_lin_vel_batch = torch.cat(motion_base_lin_vel_list, dim=0)  # [N, 3]
+        motion_base_ang_vel_batch = torch.cat(motion_base_ang_vel_list, dim=0)  # [N, 3]
+        motion_dof_pos_batch = torch.cat(motion_dof_pos_list, dim=0)  # [N, num_dof]
+        motion_dof_vel_batch = torch.cat(motion_dof_vel_list, dim=0)  # [N, num_dof]
+        
+        # Prepare batched root states (vectorized operation)
+        active_env_tensor = torch.tensor(active_env_indices, dtype=torch.int32, device=sim.device)
+        root_states_batch = robot.data.default_root_state[active_env_indices].clone()  # [N, 13]
+        root_states_batch[:, :3] = motion_base_pos_batch
+        root_states_batch[:, :2] += scene.env_origins[active_env_indices, :2]
+        root_states_batch[:, 3:7] = motion_base_rot_batch
+        root_states_batch[:, 7:10] = motion_base_lin_vel_batch
+        root_states_batch[:, 10:] = motion_base_ang_vel_batch
+        
+        # Prepare batched joint states (vectorized operation)
+        joint_pos_batch = robot.data.default_joint_pos[active_env_indices].clone()  # [N, num_joints]
+        joint_vel_batch = robot.data.default_joint_vel[active_env_indices].clone()  # [N, num_joints]
+        joint_pos_batch[:, robot_joint_indexes] = motion_dof_pos_batch
+        joint_vel_batch[:, robot_joint_indexes] = motion_dof_vel_batch
+        
+        # Write batched data to simulation (single vectorized call)
+        # Write batched data to simulation (single vectorized call)
+        robot.write_root_state_to_sim(root_states_batch, env_ids=active_env_tensor)
+        robot.write_joint_state_to_sim(joint_pos_batch, joint_vel_batch, env_ids=active_env_tensor)
         
         # Render and update scene
         sim.render()
         scene.update(sim.get_physics_dt())
         
-        # Collect data and check for completion
-        for env_idx, env_state in enumerate(env_states):
-            if not env_state.is_active:
-                continue
+        # Vectorized data collection from GPU
+        # Extract data for all active environments at once
+        active_joint_pos = robot.data.joint_pos[active_env_indices]  # [N, num_joints]
+        active_joint_vel = robot.data.joint_vel[active_env_indices]  # [N, num_joints]
+        active_body_pos_w = robot.data.body_pos_w[active_env_indices]  # [N, num_bodies, 3]
+        active_body_quat_w = robot.data.body_quat_w[active_env_indices]  # [N, num_bodies, 4]
+        active_body_lin_vel_w = robot.data.body_lin_vel_w[active_env_indices]  # [N, num_bodies, 3]
+        active_body_ang_vel_w = robot.data.body_ang_vel_w[active_env_indices]  # [N, num_bodies, 3]
+        
+        # Write to pre-allocated tensors and check completion (still need loop for logic)
+        for i, env_idx in enumerate(active_env_indices):
+            env_state = env_states[env_idx]
+            frame_idx = env_state.current_frame
             
-            # Log data for this environment
-            env_state.log["joint_pos"].append(robot.data.joint_pos[env_idx, :].cpu().numpy().copy())
-            env_state.log["joint_vel"].append(robot.data.joint_vel[env_idx, :].cpu().numpy().copy())
-            env_state.log["body_pos_w"].append(robot.data.body_pos_w[env_idx, :].cpu().numpy().copy())
-            env_state.log["body_quat_w"].append(robot.data.body_quat_w[env_idx, :].cpu().numpy().copy())
-            env_state.log["body_lin_vel_w"].append(robot.data.body_lin_vel_w[env_idx, :].cpu().numpy().copy())
-            env_state.log["body_ang_vel_w"].append(robot.data.body_ang_vel_w[env_idx, :].cpu().numpy().copy())
+            # Direct tensor assignment (no CPU transfer, no copy)
+            env_state.log_tensors["joint_pos"][frame_idx] = active_joint_pos[i]
+            env_state.log_tensors["joint_vel"][frame_idx] = active_joint_vel[i]
+            env_state.log_tensors["body_pos_w"][frame_idx] = active_body_pos_w[i]
+            env_state.log_tensors["body_quat_w"][frame_idx] = active_body_quat_w[i]
+            env_state.log_tensors["body_lin_vel_w"][frame_idx] = active_body_lin_vel_w[i]
+            env_state.log_tensors["body_ang_vel_w"][frame_idx] = active_body_ang_vel_w[i]
+            
+            # Increment frame counter after logging
+            env_state.current_frame += 1
             
             # Check if this environment completed its motion
             if env_state.is_complete():
@@ -434,6 +560,14 @@ def run_parallel_simulator(
                 assign_task(env_state)
     
     pbar.close()
+    
+    # Wait for all pending file saves to complete
+    print("[INFO]: Waiting for background file saves to complete...")
+    save_results = file_saver.wait_all()
+    
+    # Shutdown background workers
+    motion_preloader.shutdown()
+    file_saver.shutdown()
     
     # Return statistics
     return completed_count - len(failed_files), failed_files
@@ -505,6 +639,7 @@ def main():
     
     print(f"[INFO]: Found {len(csv_files)} CSV files to process")
     print(f"[INFO]: Using {args_cli.num_envs} parallel environments")
+    print(f"[INFO]: Background workers - Preload: {args_cli.preload_workers}, Save: {args_cli.save_workers}")
     
     # Run parallel processing
     success_count, failed_files = run_parallel_simulator(
