@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import math
-import numpy as np
 import os
+from os.path import dirname, join
+
+import numpy as np
 import torch
 from collections.abc import Sequence
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm, CommandTermCfg
@@ -803,8 +805,16 @@ class MultiMotionCommandCfg(CommandTermCfg):
     robot_name: str = MISSING
     """Robot name for dataset filtering."""
     
-    splits: list[str] = MISSING
-    """Dataset splits: 'train', 'val', 'test', or 'subset'."""
+    splits: list[Union[str, list[str]]] = MISSING
+    """Dataset splits configuration. Flexible format supporting:
+    - Single split per dataset: ["train", "val", "test"]
+    - Combined splits per dataset: [["train", "walk_subset"], "test"]
+    - Mixed format: ["train", ["train", "walk_subset"], "test"]
+    
+    Examples:
+        splits=["train", "val"]  # Use "train" for dataset_dirs[0], "val" for dataset_dirs[1]
+        splits=[["train", "walk"], "test"]  # Combine "train"+"walk" for dataset_dirs[0], "test" for dataset_dirs[1]
+    """
 
     # Body configuration
     anchor_body_name: str = MISSING

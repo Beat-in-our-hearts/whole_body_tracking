@@ -7,7 +7,7 @@ from NPZ files with support for quantity-based sampling and train/val split.
 import json
 import os
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Union
 
 import numpy as np
 import torch
@@ -25,14 +25,26 @@ class Motion_Dataset(Dataset):
             ./datasets/npz_datasets/{dataset_name}/{robot_name}/
         robot_name: Name of the robot (e.g., "g1").
         splits: List of dataset splits corresponding to each dataset_dir. 
-            Must have the same length as dataset_dirs. Can be any custom split name
-            (e.g., "train", "val", "test", "walk_subset", etc.).
+            Must have the same length as dataset_dirs. Each element can be:
+            - A string: single split name (e.g., "train", "val", "walk_subset")
+            - A list of strings: multiple splits to combine (e.g., ["train", "walk_subset"])
         
     Example:
+        >>> # Single split per dataset
         >>> dataset = Motion_Dataset(
         ...     dataset_dirs=["./datasets/npz_datasets/LAFAN1_Retargeting_Dataset"],
         ...     robot_name="g1",
         ...     splits=["train"]
+        ... )
+        >>> 
+        >>> # Multiple datasets with different splits
+        >>> dataset = Motion_Dataset(
+        ...     dataset_dirs=[
+        ...         "./datasets/npz_datasets/LAFAN1_Retargeting_Dataset",
+        ...         "./datasets/npz_datasets/LAFAN1_Retargeting_Dataset"
+        ...     ],
+        ...     robot_name="g1",
+        ...     splits=["train", ["train", "walk_subset"]]  # Second dataset combines two splits
         ... )
         >>> print(f"Dataset size: {len(dataset)}")
         >>> sample = dataset[0]
@@ -43,7 +55,7 @@ class Motion_Dataset(Dataset):
         self,
         dataset_dirs: list[str],
         robot_name: str,
-        splits: list[str],
+        splits: list[Union[str, list[str]]],
     ):
         """Initialize the Motion_Dataset.
         
@@ -51,7 +63,8 @@ class Motion_Dataset(Dataset):
             dataset_dirs: List of dataset directory paths.
             robot_name: Robot name.
             splits: List of dataset splits, must be the same length as dataset_dirs.
-                Each split corresponds to the dataset at the same index in dataset_dirs.
+                Each element corresponds to the dataset at the same index in dataset_dirs.
+                Can be a string (single split) or list of strings (multiple splits to combine).
             
         Raises:
             ValueError: If splits and dataset_dirs have different lengths.
@@ -84,7 +97,14 @@ class Motion_Dataset(Dataset):
     def _load_dataset_info(self):
         """Load dataset information from info.json files and collect NPZ paths."""
         for dataset_idx, dataset_dir in enumerate(self.dataset_dirs):
-            split = self.splits[dataset_idx]
+            split_config = self.splits[dataset_idx]
+            
+            # Normalize split_config to always be a list
+            if isinstance(split_config, str):
+                split_names = [split_config]
+            else:
+                split_names = split_config
+            
             info_path = dataset_dir / "info.json"
             
             if not info_path.exists():
@@ -95,28 +115,33 @@ class Motion_Dataset(Dataset):
                 info = json.load(f)
             
             dataset_name = info["dataset"]
-            split_info = info.get(split, {})
             
-            if not split_info:
-                raise ValueError(f"[Motion_Dataset] No '{split}' data in {dataset_name}")
-            
-            # Construct path to robot-specific NPZ files
-            robot_dir = dataset_dir / self.robot_name
-            
-            if not robot_dir.exists():
-                raise FileNotFoundError(f"Robot directory not found: {robot_dir}")
-            
-            # Collect NPZ paths for this dataset
-            for motion_name, quantity in split_info.items():
-                npz_path = robot_dir / f"{motion_name}.npz"
+            # Process each split in the configuration
+            for split in split_names:
+                split_info = info.get(split, {})
                 
-                if npz_path.exists():
-                    self.npz_paths.append(npz_path)
-                    self.quantities.append(quantity)
-                    self.motion_names.append(motion_name)
-                    self.dataset_sources.append(f"{dataset_name}:{split}")
-                else:
-                    print(f"[Motion_Dataset] Warning: NPZ file not found: {npz_path}")
+                if not split_info:
+                    raise ValueError(f"[Motion_Dataset] No '{split}' data in {dataset_name}")
+                
+                # Construct path to robot-specific NPZ files
+                robot_dir = dataset_dir / self.robot_name
+                
+                if not robot_dir.exists():
+                    raise FileNotFoundError(f"Robot directory not found: {robot_dir}")
+                
+                # Collect NPZ paths for this split
+                for motion_name, quantity in split_info.items():
+                    npz_path = robot_dir / f"{motion_name}.npz"
+                    
+                    if npz_path.exists():
+                        self.npz_paths.append(npz_path)
+                        self.quantities.append(quantity)
+                        self.motion_names.append(motion_name)
+                        # Record source as dataset:split1+split2+... for combined splits
+                        split_str = "+".join(split_names) if len(split_names) > 1 else split_names[0]
+                        self.dataset_sources.append(f"{dataset_name}:{split_str}")
+                    else:
+                        print(f"[Motion_Dataset] Warning: NPZ file not found: {npz_path}")
     
     def _get_quantity_stats(self) -> dict[int, int]:
         """Get statistics of quantity distribution.
@@ -258,7 +283,23 @@ if __name__ == "__main__":
     # Example usage and testing
     import argparse
     
-    parser = argparse.ArgumentParser(description="Test Motion_Dataset")
+    parser = argparse.ArgumentParser(
+        description="Test Motion_Dataset",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Single dataset with single split
+  python motion_dataset.py --dataset_dirs ./datasets/npz_datasets/LAFAN1_Retargeting_Dataset --splits train
+  
+  # Multiple datasets with single splits each
+  python motion_dataset.py --dataset_dirs dataset1 dataset2 --splits train test
+  
+  # Multiple datasets with combined splits (use --splits_combined)
+  python motion_dataset.py --dataset_dirs dataset1 dataset2 --splits train --splits_combined train+walk_subset
+  
+Note: Use '+' to separate multiple splits for a single dataset (e.g., train+walk_subset)
+        """
+    )
     parser.add_argument(
         "--dataset_dirs",
         type=str,
@@ -277,19 +318,29 @@ if __name__ == "__main__":
         type=str,
         nargs="+",
         default=["train"],
-        help="Dataset splits (must match length of dataset_dirs)",
+        help="Dataset splits (must match length of dataset_dirs). Use '+' to combine multiple splits (e.g., train+walk_subset)",
     )
     args = parser.parse_args()
     
+    # Parse splits: convert "train+walk_subset" format to ["train", "walk_subset"]
+    parsed_splits = []
+    for split_str in args.splits:
+        if "+" in split_str:
+            # Multiple splits combined
+            parsed_splits.append(split_str.split("+"))
+        else:
+            # Single split
+            parsed_splits.append(split_str)
+    
     # Validate arguments
-    if len(args.splits) != len(args.dataset_dirs):
-        parser.error(f"Number of splits ({len(args.splits)}) must match number of dataset_dirs ({len(args.dataset_dirs)})")
+    if len(parsed_splits) != len(args.dataset_dirs):
+        parser.error(f"Number of splits ({len(parsed_splits)}) must match number of dataset_dirs ({len(args.dataset_dirs)})")
     
     # Create dataset
     dataset = Motion_Dataset(
         dataset_dirs=args.dataset_dirs,
         robot_name=args.robot_name,
-        splits=args.splits,
+        splits=parsed_splits,
     )
     
     # Print dataset info
