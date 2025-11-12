@@ -102,7 +102,7 @@ class CommandsCfg:
         # Dataset configuration
         dataset_dirs=MISSING,
         robot_name=MISSING,
-        split="train",
+        splits=MISSING,
     )
 
 

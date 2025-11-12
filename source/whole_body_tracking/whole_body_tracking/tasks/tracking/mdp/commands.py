@@ -404,7 +404,7 @@ class MultiMotionCommand(CommandTerm):
         self.dataset = Motion_Dataset(
             dataset_dirs=cfg.dataset_dirs,
             robot_name=cfg.robot_name,
-            split=cfg.split,
+            splits=cfg.splits,
         )
         
         self.dataloader = Motion_Dataloader(
@@ -803,8 +803,8 @@ class MultiMotionCommandCfg(CommandTermCfg):
     robot_name: str = MISSING
     """Robot name for dataset filtering."""
     
-    split: str = "train"
-    """Dataset split: 'train', 'val', or 'test'."""
+    splits: list[str] = MISSING
+    """Dataset splits: 'train', 'val', 'test', or 'subset'."""
 
     # Body configuration
     anchor_body_name: str = MISSING

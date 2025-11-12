@@ -24,13 +24,15 @@ class Motion_Dataset(Dataset):
         dataset_dirs: List of dataset directory paths. Each should follow the structure:
             ./datasets/npz_datasets/{dataset_name}/{robot_name}/
         robot_name: Name of the robot (e.g., "g1").
-        split: Dataset split, either "train" or "val".
+        splits: List of dataset splits corresponding to each dataset_dir. 
+            Must have the same length as dataset_dirs. Can be any custom split name
+            (e.g., "train", "val", "test", "walk_subset", etc.).
         
     Example:
         >>> dataset = Motion_Dataset(
         ...     dataset_dirs=["./datasets/npz_datasets/LAFAN1_Retargeting_Dataset"],
         ...     robot_name="g1",
-        ...     split="train"
+        ...     splits=["train"]
         ... )
         >>> print(f"Dataset size: {len(dataset)}")
         >>> sample = dataset[0]
@@ -41,41 +43,48 @@ class Motion_Dataset(Dataset):
         self,
         dataset_dirs: list[str],
         robot_name: str,
-        split: Literal["train", "val"] = "train",
+        splits: list[str],
     ):
         """Initialize the Motion_Dataset.
         
         Args:
             dataset_dirs: List of dataset directory paths.
             robot_name: Robot name.
-            split: Dataset split ("train" or "val").
+            splits: List of dataset splits, must be the same length as dataset_dirs.
+                Each split corresponds to the dataset at the same index in dataset_dirs.
             
         Raises:
-            ValueError: If split is not "train" or "val".
+            ValueError: If splits and dataset_dirs have different lengths.
             FileNotFoundError: If dataset directory or info.json doesn't exist.
         """
         super().__init__()
-        if split not in ["train", "val"]:
-            raise ValueError(f"Split must be 'train' or 'val', got '{split}'")
+        
+        # Validate that splits and dataset_dirs have the same length
+        if len(splits) != len(dataset_dirs):
+            raise ValueError(
+                f"Length of splits ({len(splits)}) must match length of dataset_dirs ({len(dataset_dirs)})"
+            )
         
         self.dataset_dirs = [Path(d).expanduser().resolve() for d in dataset_dirs]
         self.robot_name = robot_name
-        self.split = split
+        self.splits = splits
         
         # Storage for NPZ file paths and metadata
         self.npz_paths: list[Path] = []
         self.quantities: list[int] = []  # Quality/difficulty of each motion clip
         self.motion_names: list[str] = []  # Base name of each motion
+        self.dataset_sources: list[str] = []  # Track which dataset each motion comes from
         
         # Load dataset information and collect NPZ paths
         self._load_dataset_info()
         
-        print(f"[Motion_Dataset] Loaded {len(self.npz_paths)} motion clips for {split} split")
+        print(f"[Motion_Dataset] Loaded {len(self.npz_paths)} motion clips from {len(self.dataset_dirs)} dataset(s)")
         print(f"[Motion_Dataset] Quantity distribution: {self._get_quantity_stats()}")
     
     def _load_dataset_info(self):
         """Load dataset information from info.json files and collect NPZ paths."""
-        for dataset_dir in self.dataset_dirs:
+        for dataset_idx, dataset_dir in enumerate(self.dataset_dirs):
+            split = self.splits[dataset_idx]
             info_path = dataset_dir / "info.json"
             
             if not info_path.exists():
@@ -86,11 +95,10 @@ class Motion_Dataset(Dataset):
                 info = json.load(f)
             
             dataset_name = info["dataset"]
-            split_info = info.get(self.split, {})
+            split_info = info.get(split, {})
             
             if not split_info:
-                print(f"[Motion_Dataset] Warning: No {self.split} data in {dataset_name}")
-                continue
+                raise ValueError(f"[Motion_Dataset] No '{split}' data in {dataset_name}")
             
             # Construct path to robot-specific NPZ files
             robot_dir = dataset_dir / self.robot_name
@@ -106,6 +114,7 @@ class Motion_Dataset(Dataset):
                     self.npz_paths.append(npz_path)
                     self.quantities.append(quantity)
                     self.motion_names.append(motion_name)
+                    self.dataset_sources.append(f"{dataset_name}:{split}")
                 else:
                     print(f"[Motion_Dataset] Warning: NPZ file not found: {npz_path}")
     
@@ -151,6 +160,7 @@ class Motion_Dataset(Dataset):
                 - npz_path: Path to the NPZ file
                 - motion_name: Name of the motion
                 - quantity: Quality/difficulty rating (1: best, 2: medium, 3: hard)
+                - dataset_source: Source dataset and split (format: "dataset_name:split")
         """
         npz_path = self.npz_paths[idx]
         
@@ -183,6 +193,7 @@ class Motion_Dataset(Dataset):
             "npz_path": str(npz_path),
             "motion_name": self.motion_names[idx],
             "quantity": self.quantities[idx],
+            "dataset_source": self.dataset_sources[idx],
         }
     
     def get_motion_info(self) -> list[dict[str, Any]]:
@@ -206,6 +217,7 @@ class Motion_Dataset(Dataset):
                 "fps": fps,
                 "length": length,
                 "duration": (length - 1) / fps,
+                "dataset_source": self.dataset_sources[i],
             })
         
         return info_list
@@ -261,19 +273,23 @@ if __name__ == "__main__":
         help="Robot name",
     )
     parser.add_argument(
-        "--split",
+        "--splits",
         type=str,
-        default="train",
-        choices=["train", "val"],
-        help="Dataset split",
+        nargs="+",
+        default=["train"],
+        help="Dataset splits (must match length of dataset_dirs)",
     )
     args = parser.parse_args()
+    
+    # Validate arguments
+    if len(args.splits) != len(args.dataset_dirs):
+        parser.error(f"Number of splits ({len(args.splits)}) must match number of dataset_dirs ({len(args.dataset_dirs)})")
     
     # Create dataset
     dataset = Motion_Dataset(
         dataset_dirs=args.dataset_dirs,
         robot_name=args.robot_name,
-        split=args.split,
+        splits=args.splits,
     )
     
     # Print dataset info
@@ -293,6 +309,7 @@ if __name__ == "__main__":
         print(f"  Duration: {sample['duration']:.2f} seconds")
         print(f"  Quantity: {sample['quantity']}")
         print(f"  NPZ path: {sample['npz_path']}")
+        print(f"  Dataset source: {sample['dataset_source']}")
         print("\n  Motion data shapes:")
         for key, value in sample['motion'].items():
             print(f"    {key}: {value.shape}")
