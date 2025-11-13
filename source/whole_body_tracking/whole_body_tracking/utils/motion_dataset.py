@@ -4,13 +4,13 @@ This module provides PyTorch-based Dataset and DataLoader for loading motion dat
 from NPZ files with support for quantity-based sampling and train/val split.
 """
 
-import json
 import os
 from pathlib import Path
 from typing import Any, Literal, Union
 
 import numpy as np
 import torch
+import yaml
 from torch.utils.data import Dataset
 
 
@@ -68,7 +68,7 @@ class Motion_Dataset(Dataset):
             
         Raises:
             ValueError: If splits and dataset_dirs have different lengths.
-            FileNotFoundError: If dataset directory or info.json doesn't exist.
+            FileNotFoundError: If dataset directory or info file (info.yaml/info.yml) doesn't exist.
         """
         super().__init__()
         
@@ -95,7 +95,7 @@ class Motion_Dataset(Dataset):
         print(f"[Motion_Dataset] Quantity distribution: {self._get_quantity_stats()}")
     
     def _load_dataset_info(self):
-        """Load dataset information from info.json files and collect NPZ paths."""
+        """Load dataset information from info.yaml or info.yml files and collect NPZ paths."""
         for dataset_idx, dataset_dir in enumerate(self.dataset_dirs):
             split_config = self.splits[dataset_idx]
             
@@ -105,14 +105,23 @@ class Motion_Dataset(Dataset):
             else:
                 split_names = split_config
             
-            info_path = dataset_dir / "info.json"
+            # Try YAML files only (info.yaml or info.yml)
+            info_path = None
+            for ext in [".yaml", ".yml"]:
+                candidate_path = dataset_dir / f"info{ext}"
+                if candidate_path.exists():
+                    info_path = candidate_path
+                    break
             
-            if not info_path.exists():
-                raise FileNotFoundError(f"Dataset info file not found: {info_path}")
+            if info_path is None:
+                raise FileNotFoundError(
+                    f"Dataset info file not found in {dataset_dir}. "
+                    f"Expected: info.yaml or info.yml"
+                )
             
-            # Load dataset info
+            # Load dataset info from YAML
             with open(info_path, "r") as f:
-                info = json.load(f)
+                info = yaml.safe_load(f)
             
             dataset_name = info["dataset"]
             
