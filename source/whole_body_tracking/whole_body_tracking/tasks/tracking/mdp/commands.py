@@ -431,8 +431,13 @@ class MultiMotionCommand(CommandTerm):
         # === Global Bins Setup ===
         self.bin_size = int(1 / (env.cfg.decimation * env.cfg.sim.dt))
         self.bin_count = int(self.dataloader.time_step_total // self.bin_size) + 1
+        
+        # Failure rate tracking (as described in paper)
         self.bin_failed_count = torch.zeros(self.bin_count, dtype=torch.float, device=self.device)
+        self.bin_sampled_count = torch.zeros(self.bin_count, dtype=torch.float, device=self.device)
         self._current_bin_failed = torch.zeros(self.bin_count, dtype=torch.float, device=self.device)
+        self._current_bin_sampled = torch.zeros(self.bin_count, dtype=torch.float, device=self.device)
+        
         self.kernel = torch.tensor(
             [self.cfg.adaptive_lambda**i for i in range(self.cfg.adaptive_kernel_size)], device=self.device
         )
@@ -579,14 +584,19 @@ class MultiMotionCommand(CommandTerm):
         self.metrics["error_joint_vel"] = torch.norm(self.joint_vel - self.robot_joint_vel, dim=-1)
 
     def _adaptive_sampling(self, env_ids: Sequence[int]):
-        """Adaptive sampling using global bins.
+        """Adaptive sampling using global bins with capped failure rates.
         
-        Workflow:
-        1. Update global bin failure counts based on terminated environments
-        2. Compute sampling probabilities (failure-weighted + uniform)
-        3. Sample global bin indices
-        4. Uniform sample within selected bins to get global timesteps
-        5. Reverse lookup: global_timestep → motion_id + local time_step
+        Implements the paper's approach:
+        1. Track failure counts and sample counts per bin
+        2. Compute failure rate fi for each bin
+        3. Cap failure rate: fi = min(fi, β * f_avg)
+        4. Compute sampling probabilities: pi = α * p̂i + (1-α) * 1/N
+        5. Sample global bin → uniform sample within bin → reverse lookup motion_id + time_step
+        
+        Paper reference:
+        "To prevent excessive sampling from bins with exceptionally high failure rates, 
+        the failure rate in each bin is capped at βf̄, where β is a hyperparameter 
+        and f̄ is the average failure rate across all bins."
         """
         # Ensure env_ids is a tensor
         if isinstance(env_ids, torch.Tensor):
@@ -594,11 +604,20 @@ class MultiMotionCommand(CommandTerm):
         else:
             env_ids_tensor = torch.tensor(env_ids, dtype=torch.long, device=self.device)
         
-        # === Step 1: Update bin failure statistics ===
+        # === Step 1: Track sampled bins (for ALL resampling events) ===
+        # Every env_id that is being resampled came from some bin
+        all_global_time_steps = self.global_time_steps[env_ids_tensor]
+        all_bins = (all_global_time_steps.float() / self.bin_size).long()
+        all_bins = torch.clamp(all_bins, 0, self.bin_count - 1)
+        
+        self._current_bin_sampled += torch.bincount(
+            all_bins, minlength=self.bin_count
+        ).float()
+        
+        # === Step 2: Track failed bins (only for terminated environments) ===
         episode_failed = self._env.termination_manager.terminated[env_ids_tensor]
         
         if torch.any(episode_failed):
-            # Directly use boolean indexing on tensor
             failed_envs = env_ids_tensor[episode_failed]
             failed_global_time_steps = self.global_time_steps[failed_envs]
             failed_bins = (failed_global_time_steps.float() / self.bin_size).long()
@@ -608,33 +627,73 @@ class MultiMotionCommand(CommandTerm):
                 failed_bins, minlength=self.bin_count
             ).float()
         
-        # === Step 2: Compute sampling probabilities ===
-        sampling_probabilities = self.bin_failed_count + self.cfg.adaptive_uniform_ratio / float(self.bin_count)
-        
-        sampling_probabilities = torch.nn.functional.pad(
-            sampling_probabilities.unsqueeze(0).unsqueeze(0),
-            (0, self.cfg.adaptive_kernel_size - 1),
-            mode="replicate",
+        # === Step 3: Compute failure rates with capping ===
+        # Calculate failure rate for each bin: fi = failed_i / sampled_i
+        bin_failure_rates = torch.zeros(self.bin_count, device=self.device)
+        valid_bins = self.bin_sampled_count > 0
+        bin_failure_rates[valid_bins] = (
+            self.bin_failed_count[valid_bins] / self.bin_sampled_count[valid_bins]
         )
-        sampling_probabilities = torch.nn.functional.conv1d(sampling_probabilities, self.kernel.view(1, 1, -1)).view(-1)
         
+        # Calculate average failure rate across all bins with samples
+        if valid_bins.any():
+            f_avg = bin_failure_rates[valid_bins].mean()
+        else:
+            f_avg = torch.tensor(0.0, device=self.device)
+        
+        # Cap failure rates: fi = min(fi, β * f_avg)
+        # β (failure_rate_cap_multiplier) controls maximum allowed failure rate
+        capped_failure_rates = torch.minimum(
+            bin_failure_rates,
+            self.cfg.failure_rate_cap_multiplier * f_avg
+        )
+        
+        # === Step 4: Compute sampling probabilities ===
+        # Preliminary weights from capped failure rates
+        p_hat = capped_failure_rates.clone()
+        
+        # Apply convolution kernel for smoothing (optional, from original implementation)
+        if self.cfg.adaptive_kernel_size > 1:
+            p_hat = torch.nn.functional.pad(
+                p_hat.unsqueeze(0).unsqueeze(0),
+                (0, self.cfg.adaptive_kernel_size - 1),
+                mode="replicate",
+            )
+            p_hat = torch.nn.functional.conv1d(p_hat, self.kernel.view(1, 1, -1)).view(-1)
+        
+        # Normalize preliminary weights
+        p_hat_sum = p_hat.sum()
+        if p_hat_sum > 0:
+            p_hat = p_hat / p_hat_sum
+        else:
+            # If no failures yet, use uniform
+            p_hat = torch.ones(self.bin_count, device=self.device) / self.bin_count
+        
+        # Final sampling probability: pi = α * p̂i + (1-α) * 1/N
+        # α (adaptive_uniform_ratio) controls blend between adaptive and uniform sampling
+        uniform_prob = 1.0 / float(self.bin_count)
+        sampling_probabilities = (
+            self.cfg.adaptive_uniform_ratio * p_hat + 
+            (1 - self.cfg.adaptive_uniform_ratio) * uniform_prob
+        )
+        
+        # Ensure probabilities sum to 1
         sampling_probabilities = sampling_probabilities / sampling_probabilities.sum()
         
-        # === Step 3: Sample global bins ===
-        sampled_global_bins = torch.multinomial(sampling_probabilities, len(env_ids_tensor), replacement=True)  # [M]
+        # === Step 5: Sample global bins ===
+        sampled_global_bins = torch.multinomial(sampling_probabilities, len(env_ids_tensor), replacement=True)
         
-        # === Step 4: Uniform sample within bins to get global timesteps ===
-        bin_starts = sampled_global_bins.float() * self.bin_size  # [M]
+        # === Step 6: Uniform sample within bins to get global timesteps ===
+        bin_starts = sampled_global_bins.float() * self.bin_size
         bin_ends = torch.minimum(
             (sampled_global_bins.float() + 1) * self.bin_size,
             torch.tensor(self.dataloader.time_step_total-1, dtype=torch.float, device=self.device)
-        )  # [M]
+        )
 
-        # Uniform sample within each bin
         random_offsets = sample_uniform(0.0, 1.0, (len(env_ids_tensor),), device=self.device)
         self.global_time_steps[env_ids_tensor] = (bin_starts + random_offsets * (bin_ends - bin_starts)).long()
         
-        # === Step 5: Reverse lookup motion_id and time_steps ===
+        # === Step 7: Reverse lookup motion_id and time_steps ===
         new_motion_ids = torch.searchsorted(
             self.dataloader.motion_offsets,
             self.global_time_steps[env_ids_tensor].float(),
@@ -728,12 +787,20 @@ class MultiMotionCommand(CommandTerm):
         self.body_quat_relative_w = quat_mul(delta_ori_w, self.body_quat_w)
         self.body_pos_relative_w = delta_pos_w + quat_apply(delta_ori_w, self.body_pos_w - anchor_pos_w_repeat)
 
-        # Update bin failure counts with exponential moving average
+        # Update bin statistics with exponential moving average (EMA)
+        # Failed count
         self.bin_failed_count = (
             self.cfg.adaptive_alpha * self._current_bin_failed
             + (1 - self.cfg.adaptive_alpha) * self.bin_failed_count
         )
         self._current_bin_failed.zero_()
+        
+        # Sampled count
+        self.bin_sampled_count = (
+            self.cfg.adaptive_alpha * self._current_bin_sampled
+            + (1 - self.cfg.adaptive_alpha) * self.bin_sampled_count
+        )
+        self._current_bin_sampled.zero_()
         
         # Mark system as started after first update completes
         self._has_started = True
@@ -841,10 +908,18 @@ class MultiMotionCommandCfg(CommandTermCfg):
     """Exponential decay factor for kernel weights."""
     
     adaptive_uniform_ratio: float = 0.1
-    """Ratio of uniform sampling mixed with failure-based sampling."""
+    """Blending parameter α in paper: pi = α*p̂i + (1-α)*1/N.
+    Controls blend between adaptive (failure-based) and uniform sampling.
+    Range: [0, 1]. Higher values favor more uniform exploration."""
     
     adaptive_alpha: float = 0.001
-    """EMA smoothing factor for bin failure counts."""
+    """EMA smoothing factor for bin statistics updates.
+    Controls how quickly statistics adapt to recent samples."""
+    
+    failure_rate_cap_multiplier: float = 2.0
+    """Capping parameter β in paper: fi_capped = min(fi, β*f_avg).
+    Prevents excessive sampling from bins with very high failure rates.
+    Typical range: [1.5, 3.0]. Higher values allow more focus on hard bins."""
 
     # Evaluation-specific parameters
     eval_target_attempts: int = 128
