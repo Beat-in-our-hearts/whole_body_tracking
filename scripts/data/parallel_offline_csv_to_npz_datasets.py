@@ -42,6 +42,7 @@ parser.add_argument("--pattern", type=str, default="*.csv", help="File pattern t
 parser.add_argument("--num_envs", type=int, default=32, help="Number of parallel environments for processing (default: 32).")
 parser.add_argument("--preload_workers", type=int, default=8, help="Number of background workers for CSV preloading (default: 16).")
 parser.add_argument("--save_workers", type=int, default=8, help="Number of background workers for async NPZ saving (default: 16).")
+parser.add_argument("--visualize", action="store_true", default=False, help="Enable visualization of robot poses during conversion.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -66,6 +67,8 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import axis_angle_from_quat, quat_conjugate, quat_mul, quat_slerp
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from isaaclab.markers.config import FRAME_MARKER_CFG
 
 ##
 # Pre-defined configs
@@ -363,6 +366,7 @@ def run_parallel_simulator(
     csv_files: list[Path],
     input_path: Path,
     output_path: Path,
+    vis_body_names: list[str] = None,
 ):
     """Runs the simulation loop with parallel environments."""
     num_envs = args_cli.num_envs
@@ -371,6 +375,20 @@ def run_parallel_simulator(
     robot = scene["robot"]
     num_joints = len(joint_names)
     num_bodies = robot.data.body_pos_w.shape[1]  # Get actual body count from robot data
+    
+    # Initialize visualization if enabled
+    body_visualizers = []
+    body_indexes = None
+    if args_cli.visualize and vis_body_names is not None:
+        print(f"[INFO]: Initializing visualization for {len(vis_body_names)} bodies...")
+        body_indexes = torch.tensor(
+            robot.find_bodies(vis_body_names, preserve_order=True)[0], dtype=torch.long, device=sim.device
+        )
+        for name in vis_body_names:
+            visualizer_cfg = FRAME_MARKER_CFG.replace(prim_path=f"/Visuals/Current/{name}")
+            visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
+            body_visualizers.append(VisualizationMarkers(visualizer_cfg))
+        print(f"[INFO]: Visualization initialized for bodies: {vis_body_names}")
     
     # Initialize environment states with pre-allocated memory
     env_states = [EnvState(i, sim.device, num_joints, num_bodies) for i in range(num_envs)]
@@ -520,11 +538,20 @@ def run_parallel_simulator(
         sim.render()
         scene.update(sim.get_physics_dt())
         
+        # Update visualization if enabled
+        if args_cli.visualize and body_visualizers:
+            robot_body_pos = robot.data.body_pos_w[:, body_indexes]  # [num_envs, len(vis_body_names), 3]
+            robot_body_quat = robot.data.body_quat_w[:, body_indexes]  # [num_envs, len(vis_body_names), 4]
+            for i, visualizer in enumerate(body_visualizers):
+                visualizer.visualize(robot_body_pos[:, i], robot_body_quat[:, i])
+        
         # Vectorized data collection from GPU
         # Extract data for all active environments at once
+        # num_bodies = robot.data.body_pos_w.shape[1]
         active_joint_pos = robot.data.joint_pos[active_env_indices]  # [N, num_joints]
         active_joint_vel = robot.data.joint_vel[active_env_indices]  # [N, num_joints]
         active_body_pos_w = robot.data.body_pos_w[active_env_indices]  # [N, num_bodies, 3]
+        active_body_pos_w[:, :, :2] -= scene.env_origins[active_env_indices][:, None, :2]  # Adjust XY positions
         active_body_quat_w = robot.data.body_quat_w[active_env_indices]  # [N, num_bodies, 4]
         active_body_lin_vel_w = robot.data.body_lin_vel_w[active_env_indices]  # [N, num_bodies, 3]
         active_body_ang_vel_w = robot.data.body_ang_vel_w[active_env_indices]  # [N, num_bodies, 3]
@@ -641,9 +668,30 @@ def main():
     print(f"[INFO]: Using {args_cli.num_envs} parallel environments")
     print(f"[INFO]: Background workers - Preload: {args_cli.preload_workers}, Save: {args_cli.save_workers}")
     
+    # Define body names for visualization
+    vis_body_names = [
+            "pelvis",
+            "left_hip_roll_link",
+            "left_knee_link",
+            "left_ankle_roll_link",
+            "right_hip_roll_link",
+            "right_knee_link",
+            "right_ankle_roll_link",
+            "torso_link",
+            "left_shoulder_roll_link",
+            "left_elbow_link",
+            "left_wrist_yaw_link",
+            "right_shoulder_roll_link",
+            "right_elbow_link",
+            "right_wrist_yaw_link",
+    ] if args_cli.visualize else None
+    
+    if args_cli.visualize:
+        print(f"[INFO]: Visualization enabled for {len(vis_body_names)} bodies")
+    
     # Run parallel processing
     success_count, failed_files = run_parallel_simulator(
-        sim, scene, joint_names, csv_files, input_path, output_path
+        sim, scene, joint_names, csv_files, input_path, output_path, vis_body_names
     )
     
     # Print summary
