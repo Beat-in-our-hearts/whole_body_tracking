@@ -600,8 +600,8 @@ class MultiMotionCommand(CommandTerm):
             self._current_bin_failed += torch.bincount(failed_bins, minlength=self.bin_count).float()
         
         # === Step 2: Compute sampling probabilities ===
-        # 
-        failed_sampling_probabilities = self.bin_failed_count / (self.bin_failed_count.sum() + 1e-12)
+        clip_bin_failed_count = torch.minimum(self.bin_failed_count, self.bin_failed_count.sum() / self.cfg.adaptive_cap)
+        failed_sampling_probabilities = (clip_bin_failed_count + 1e-12) / (clip_bin_failed_count.sum() + 1e-12)
         sampling_probabilities = self.cfg.adaptive_uniform_ratio * failed_sampling_probabilities + \
                                 (1 - self.cfg.adaptive_uniform_ratio) / self.bin_count
         sampling_probabilities = sampling_probabilities / sampling_probabilities.sum()
@@ -721,7 +721,6 @@ class MultiMotionCommand(CommandTerm):
             self.cfg.adaptive_alpha * self._current_bin_failed
             + (1 - self.cfg.adaptive_alpha) * self.bin_failed_count
         )
-        self.bin_failed_count = torch.min(self.bin_failed_count, self.bin_failed_count.sum()/self.cfg.adaptive_cap)
         self._current_bin_failed.zero_()
         
         # Mark system as started after first update completes
