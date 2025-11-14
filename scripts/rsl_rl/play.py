@@ -21,6 +21,10 @@ parser.add_argument(
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--motion_file", type=str, default=None, help="Path to the motion file.")
+parser.add_argument("--disable_multi_motion", action="store_true", default=False, help="Disable multi-motion training.")
+parser.add_argument("--datasets", type=str, default=None, help="Comma separated list of datasets to use.")
+parser.add_argument("--splits", type=str, default=None, help="Splits name to use for datasets.")
+
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -97,7 +101,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(f"[INFO]: Loading model checkpoint from: {run_path}/{file}")
         resume_path = f"./logs/rsl_rl/temp/{file}"
 
-        if args_cli.motion_file is not None:
+        if not args_cli.disable_multi_motion and args_cli.motion_file is not None:
             print(f"[INFO]: Using motion file from CLI: {args_cli.motion_file}")
             env_cfg.commands.motion.motion_file = args_cli.motion_file
 
@@ -124,6 +128,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         asset_name = "robot",
     )
     env_cfg.terminations.time_out = None
+
+    if args_cli.datasets is not None and args_cli.splits is not None:
+        env_cfg.commands.motion.dataset_dirs = args_cli.datasets.split(",")
+        env_cfg.commands.motion.splits = args_cli.splits.split(",")
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
