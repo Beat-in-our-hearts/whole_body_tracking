@@ -260,7 +260,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, joi
         # set root state
         root_states = robot.data.default_root_state.clone()
         root_states[:, :3] = motion_base_pos
-        root_states[:, :2] += scene.env_origins[:, :2]
+        # root_states[:, :2] += scene.env_origins[:, :2]
         root_states[:, 3:7] = motion_base_rot
         root_states[:, 7:10] = motion_base_lin_vel
         root_states[:, 10:] = motion_base_ang_vel
