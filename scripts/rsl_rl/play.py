@@ -9,6 +9,7 @@ from isaaclab.app import AppLauncher
 
 # local imports
 import cli_args  # isort: skip
+import tqdm
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
@@ -60,6 +61,7 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 # Import extensions to set up environment tasks
 import whole_body_tracking.tasks  # noqa: F401
 from whole_body_tracking.utils.exporter import attach_onnx_metadata, export_motion_policy_as_onnx
+from isaaclab_rl.rsl_rl import export_policy_as_jit
 
 
 @hydra_task_config(args_cli.task, "rsl_rl_cfg_entry_point")
@@ -110,6 +112,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
 
+    from isaaclab.envs.common import ViewerCfg
+    
+    env_cfg.viewer = ViewerCfg(
+        eye = (8.0, 8.0, 8.0),
+        # eye = (0.0, 0.0, 10.0),
+        lookat = (0.0, 0.0, 0.0),
+        env_index = 20,
+        origin_type = "env",
+        # origin_type = "asset_root",
+        asset_name = "robot",
+    )
+    env_cfg.terminations.time_out = None
+
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
@@ -141,33 +156,56 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # obtain the trained policy for inference
     policy = ppo_runner.get_inference_policy(device=env.unwrapped.device)
 
+    try:
+        # version 2.3 onwards
+        policy_nn = ppo_runner.alg.policy
+    except AttributeError:
+        # version 2.2 and below
+        policy_nn = ppo_runner.alg.actor_critic
+
+    # extract the normalizer
+    if hasattr(policy_nn, "actor_obs_normalizer"):
+        normalizer = policy_nn.actor_obs_normalizer
+    elif hasattr(policy_nn, "student_obs_normalizer"):
+        normalizer = policy_nn.student_obs_normalizer
+    else:
+        normalizer = None
+    
     # export policy to onnx/jit
     export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
+    export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
 
-    export_motion_policy_as_onnx(
-        env.unwrapped,
-        ppo_runner.alg.policy,
-        normalizer=ppo_runner.obs_normalizer,
-        path=export_model_dir,
-        filename="policy.onnx",
-    )
-    attach_onnx_metadata(env.unwrapped, args_cli.wandb_path if args_cli.wandb_path else "none", export_model_dir)
+    # export_motion_policy_as_onnx(
+    #     env.unwrapped,
+    #     policy_nn,
+    #     normalizer=normalizer,
+    #     path=export_model_dir,
+    #     filename="policy.onnx",
+    # )
+    
+    # attach_onnx_metadata(env.unwrapped, args_cli.wandb_path if args_cli.wandb_path else "none", export_model_dir)
     # reset environment
-    obs, _ = env.get_observations()
+    try: # isaacsim 4.5
+        obs, _ = env.get_observations()
+    except: # isaacsim 5.1
+        obs = env.get_observations()
+    
     timestep = 0
     # simulate environment
-    while simulation_app.is_running():
-        # run everything in inference mode
-        with torch.inference_mode():
-            # agent stepping
-            actions = policy(obs)
-            # env stepping
-            obs, _, _, _ = env.step(actions)
-        if args_cli.video:
-            timestep += 1
-            # Exit the play loop after recording one video
-            if timestep == args_cli.video_length:
-                break
+    with tqdm.tqdm(total=args_cli.video_length, desc="Playing") as pbar:
+        while simulation_app.is_running():
+            # run everything in inference mode
+            with torch.inference_mode():
+                # agent stepping
+                actions = policy(obs)
+                # env stepping
+                obs, _, _, _ = env.step(actions)
+            if args_cli.video:
+                timestep += 1
+                pbar.update(1)
+                # Exit the play loop after recording one video
+                if timestep == args_cli.video_length:
+                    break
 
     # close the simulator
     env.close()
