@@ -25,8 +25,8 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 parser.add_argument("--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes.")
-
-# parser.add_argument("--registry_name", type=str, required=True, help="The name of the wand registry.")
+parser.add_argument("--disable_multi_motion", action="store_true", default=False, help="Disable multi-motion training.")
+parser.add_argument("--motion_file", type=str, default=None, help="Path to the motion file to load.")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -64,10 +64,12 @@ from isaaclab.utils.io import dump_yaml
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
+from isaaclab.envs.common import ViewerCfg
 
 # Import extensions to set up environment tasks
 import whole_body_tracking.tasks  # noqa: F401
 from whole_body_tracking.utils.my_on_policy_runner import MotionOnPolicyRunner as OnPolicyRunner
+from whole_body_tracking.utils.my_on_policy_runner import MultiMotionOnPolicyRunner as MultiMotionOnPolicyRunner
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -100,17 +102,18 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env_cfg.seed = seed
         agent_cfg.seed = seed
         
-    # load the motion file from the wandb registry
-    # registry_name = args_cli.registry_name
-    # if ":" not in registry_name:  # Check if the registry name includes alias, if not, append ":latest"
-    #     registry_name += ":latest"
-    # import pathlib
+    # set viewer configuration
+    env_cfg.viewer = ViewerCfg(
+        eye = (8.0, 8.0, 8.0),
+        lookat = (0.0, 0.0, 0.0),
+        env_index = 20,
+        origin_type = "env", # "asset_root",
+        asset_name = "robot",
+    )
 
-    # import wandb
-
-    # api = wandb.Api()
-    # artifact = api.artifact(registry_name)
-    # env_cfg.commands.motion.motion_file = str(pathlib.Path(artifact.download()) / "motion.npz")
+    if args_cli.disable_multi_motion:
+        assert args_cli.motion_file is not None, "Motion file must be specified when disabling multi-motion."
+        env_cfg.commands.motion.motion_file = args_cli.motion_file
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
@@ -144,9 +147,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env = RslRlVecEnvWrapper(env)
 
     # create runner from rsl-rl
-    runner = OnPolicyRunner(
-        env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device,
-    )
+    if args_cli.disable_multi_motion:
+        runner = OnPolicyRunner(
+            env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device,
+        )
+    else:
+        runner = MultiMotionOnPolicyRunner(
+            env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device,
+        )
+    
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
     # save resume path before creating a new log_dir
@@ -160,8 +169,6 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
-    # dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
-    # dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
 
     # run training
     runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
