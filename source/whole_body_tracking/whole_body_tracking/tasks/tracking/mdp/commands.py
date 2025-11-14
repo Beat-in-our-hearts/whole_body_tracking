@@ -601,7 +601,7 @@ class MultiMotionCommand(CommandTerm):
         
         # === Step 2: Compute sampling probabilities ===
         clip_bin_failed_count = torch.minimum(self.bin_failed_count, self.bin_failed_count.sum() / self.cfg.adaptive_cap)
-        failed_sampling_probabilities = (clip_bin_failed_count + 1e-12) / (clip_bin_failed_count.sum() + 1e-12)
+        failed_sampling_probabilities = (clip_bin_failed_count + 1e-12) / (clip_bin_failed_count.sum() + 1e-12 * self.bin_count)
         sampling_probabilities = self.cfg.adaptive_uniform_ratio * failed_sampling_probabilities + \
                                 (1 - self.cfg.adaptive_uniform_ratio) / self.bin_count
         sampling_probabilities = sampling_probabilities / sampling_probabilities.sum()
