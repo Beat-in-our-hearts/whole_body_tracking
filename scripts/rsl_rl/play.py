@@ -24,6 +24,7 @@ parser.add_argument("--motion_file", type=str, default=None, help="Path to the m
 parser.add_argument("--disable_multi_motion", action="store_true", default=False, help="Disable multi-motion training.")
 parser.add_argument("--datasets", type=str, default=None, help="Comma separated list of datasets to use.")
 parser.add_argument("--splits", type=str, default=None, help="Splits name to use for datasets.")
+parser.add_argument("--wandb_run_path", type=str, default=None, help="Path to the wandb run to load the model from.")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -78,38 +79,43 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
     log_root_path = os.path.abspath(log_root_path)
 
-    if args_cli.wandb_path:
+    # Download weights from wandb (only for multi-motion mode)
+    if not args_cli.disable_multi_motion and args_cli.wandb_run_path:
         import wandb
 
-        run_path = args_cli.wandb_path
+        run_path = args_cli.wandb_run_path
 
         api = wandb.Api()
-        if "model" in args_cli.wandb_path:
-            run_path = "/".join(args_cli.wandb_path.split("/")[:-1])
+        # if "model" in args_cli.wandb_run_path:
+        #     run_path = "/".join(args_cli.wandb_run_path.split("/")[:-1])
         wandb_run = api.run(run_path)
+        
         # loop over files in the run
         files = [file.name for file in wandb_run.files() if "model" in file.name]
         # files are all model_xxx.pt find the largest filename
-        if "model" in args_cli.wandb_path:
-            file = args_cli.wandb_path.split("/")[-1]
+        if "model" in args_cli.wandb_run_path:
+            file = args_cli.wandb_run_path.split("/")[-1]
         else:
             file = max(files, key=lambda x: int(x.split("_")[1].split(".")[0]))
 
         wandb_file = wandb_run.file(str(file))
         wandb_file.download("./logs/rsl_rl/temp", replace=True)
 
-        print(f"[INFO]: Loading model checkpoint from: {run_path}/{file}")
+        print(f"[INFO]: Loading model checkpoint from wandb: {run_path}/{file}")
         resume_path = f"./logs/rsl_rl/temp/{file}"
 
-        if not args_cli.disable_multi_motion and args_cli.motion_file is not None:
-            print(f"[INFO]: Using motion file from CLI: {args_cli.motion_file}")
-            env_cfg.commands.motion.motion_file = args_cli.motion_file
-
-        art = next((a for a in wandb_run.used_artifacts() if a.type == "motions"), None)
-        if art is None:
-            print("[WARN] No model artifact found in the run.")
-        else:
-            env_cfg.commands.motion.motion_file = str(pathlib.Path(art.download()) / "motion.npz")
+        # Handle motion file
+        # if args_cli.motion_file is not None:
+        #     print(f"[INFO]: Using motion file from CLI: {args_cli.motion_file}")
+        #     env_cfg.commands.motion.motion_file = args_cli.motion_file
+        # else:
+        #     # Try to download motion artifact from wandb
+        #     art = next((a for a in wandb_run.used_artifacts() if a.type == "motions"), None)
+        #     if art is None:
+        #         print("[WARN] No motion artifact found in the wandb run.")
+        #     else:
+        #         env_cfg.commands.motion.motion_file = str(pathlib.Path(art.download()) / "motion.npz")
+        #         print(f"[INFO]: Using motion file from wandb artifact: {env_cfg.commands.motion.motion_file}")
 
     else:
         print(f"[INFO] Loading experiment from directory: {log_root_path}")
@@ -191,7 +197,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     #     filename="policy.onnx",
     # )
     
-    # attach_onnx_metadata(env.unwrapped, args_cli.wandb_path if args_cli.wandb_path else "none", export_model_dir)
+    # attach_onnx_metadata(env.unwrapped, args_cli.wandb_run_path if args_cli.wandb_run_path else "none", export_model_dir)
     # reset environment
     try: # isaacsim 4.5
         obs, _ = env.get_observations()

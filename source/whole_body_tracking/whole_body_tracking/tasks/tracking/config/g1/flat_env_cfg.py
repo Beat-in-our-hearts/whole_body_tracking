@@ -93,7 +93,7 @@ class G1FlatMultiTrackingEnvDeployCfg(DeployMultiTrackingEnvCfg):
         self.actions.joint_pos.scale = G1_ACTION_SCALE
         self.commands.motion.robot_name = "g1"
         self.commands.motion.dataset_dirs = [os.path.join(DATASETS_DIR, "LAFAN1_Retargeting_Dataset"),]
-        self.commands.motion.splits = ["walk_subset",]
+        self.commands.motion.splits = ["train",]
         self.commands.motion.anchor_body_name = "torso_link"
         self.commands.motion.body_names = [
             "pelvis",
