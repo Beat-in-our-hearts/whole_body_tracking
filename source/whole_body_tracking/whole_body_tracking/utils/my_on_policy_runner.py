@@ -25,7 +25,7 @@ class MotionOnPolicyRunner(OnPolicyRunner):
     def __init__(
         self, env: VecEnv, 
         train_cfg: dict, 
-        type: Literal["single_motion", "multi_motion", "new_multi_motion"],
+        type: Literal["single_motion", "multi_motion"],
         log_dir: str | None = None, 
         device="cpu", 
         registry_name: str = None,
@@ -39,14 +39,32 @@ class MotionOnPolicyRunner(OnPolicyRunner):
         super().save(path, infos)
         if self.logger_type in ["wandb"]:
             policy_path = path.split("model")[0]
-            filename = policy_path.split("/")[-2] + ".onnx"
+            base_filename = policy_path.split("/")[-2]
+            
+            # 1. Export obs_full version - each observation term as separate input
+            filename_obs_full = base_filename + "_obs_full.onnx"
             export_motion_policy_as_onnx(
                 self.env.unwrapped, 
                 self.alg.policy, 
                 type=self.type,
                 normalizer=self.obs_normalizer, 
                 path=policy_path, 
-                filename=filename
+                filename=filename_obs_full,
+                obs_full=True,
+            )
+            attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename_obs_full)
+            wandb.save(policy_path + filename_obs_full, base_path=os.path.dirname(policy_path))
+            
+            # 2. Export traditional version - single concatenated obs input
+            filename = base_filename + ".onnx"
+            export_motion_policy_as_onnx(
+                self.env.unwrapped, 
+                self.alg.policy, 
+                type=self.type,
+                normalizer=self.obs_normalizer, 
+                path=policy_path, 
+                filename=filename,
+                obs_full=False,
             )
             attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename)
             wandb.save(policy_path + filename, base_path=os.path.dirname(policy_path))

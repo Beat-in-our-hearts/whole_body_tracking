@@ -62,7 +62,8 @@ from isaaclab.utils.dict import print_dict
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
-
+from isaaclab.utils.io import load_yaml
+            
 # Import extensions to set up environment tasks
 import whole_body_tracking.tasks  # noqa: F401
 from whole_body_tracking.utils.exporter import attach_onnx_metadata, export_motion_policy_as_onnx
@@ -104,20 +105,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(f"[INFO]: Loading model checkpoint from wandb: {run_path}/{file}")
         resume_path = f"./logs/rsl_rl/temp/{file}"
 
-        # Handle motion file
-        # if args_cli.motion_file is not None:
-        #     print(f"[INFO]: Using motion file from CLI: {args_cli.motion_file}")
-        #     env_cfg.commands.motion.motion_file = args_cli.motion_file
-        # else:
-        #     # Try to download motion artifact from wandb
-        #     art = next((a for a in wandb_run.used_artifacts() if a.type == "motions"), None)
-        #     if art is None:
-        #         print("[WARN] No motion artifact found in the wandb run.")
-        #     else:
-        #         env_cfg.commands.motion.motion_file = str(pathlib.Path(art.download()) / "motion.npz")
-        #         print(f"[INFO]: Using motion file from wandb artifact: {env_cfg.commands.motion.motion_file}")
-
     else:
+        # motion_file from log_root_path/params/env.yaml
+        # resume_env_cfg_path = os.path.join(log_root_path, "params", "env.yaml")
+        # resume_env_cfg_dict = load_yaml(resume_env_cfg_path)
+        # motion_file = resume_env_cfg_dict.get("commands", {}).get("motion", {}).get("motion_file", None)
+
+        # env_cfg.commands.motion.motion_file = motion_file
+        # print(f"[INFO]: Using motion file from env.yaml: {motion_file}")
+            
+        if args_cli.motion_file is not None:
+            env_cfg.commands.motion.motion_file = args_cli.motion_file
+            print(f"[INFO]: Overriding motion file from CLI: {args_cli.motion_file}")
+            
         print(f"[INFO] Loading experiment from directory: {log_root_path}")
         resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
@@ -182,22 +182,55 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         normalizer = policy_nn.actor_obs_normalizer
     elif hasattr(policy_nn, "student_obs_normalizer"):
         normalizer = policy_nn.student_obs_normalizer
+    elif hasattr(ppo_runner, "obs_normalizer"): # rsl_rl 2.3.3
+        normalizer = ppo_runner.obs_normalizer
     else:
+        print("[WARN] No normalizer found for the policy network.")
         normalizer = None
+        
+    print("[INFO] normalizer:", normalizer)
     
     # export policy to onnx/jit
     export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
     export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
 
+    # Determine export type
+    export_type = "single_motion" if args_cli.disable_multi_motion else "multi_motion"
+
+    # 1. Export obs_full version - each observation term as separate input
     export_motion_policy_as_onnx(
         env.unwrapped,
         policy_nn,
         normalizer=normalizer,
+        type=export_type,
+        obs_full=True,
+        path=export_model_dir,
+        filename="policy_obs_full.onnx",
+    )
+    attach_onnx_metadata(
+        env.unwrapped, 
+        args_cli.wandb_run_path if args_cli.wandb_run_path else "none", 
+        export_model_dir,
+        filename="policy_obs_full.onnx"
+    )
+
+    # 2. Export traditional version - single concatenated obs input
+    export_motion_policy_as_onnx(
+        env.unwrapped,
+        policy_nn,
+        normalizer=normalizer,
+        type=export_type,
+        obs_full=False,
         path=export_model_dir,
         filename="policy.onnx",
     )
+    attach_onnx_metadata(
+        env.unwrapped, 
+        args_cli.wandb_run_path if args_cli.wandb_run_path else "none", 
+        export_model_dir,
+        filename="policy.onnx"
+    )
     
-    attach_onnx_metadata(env.unwrapped, args_cli.wandb_run_path if args_cli.wandb_run_path else "none", export_model_dir)
     # reset environment
     try: # isaacsim 4.5
         obs, _ = env.get_observations()
