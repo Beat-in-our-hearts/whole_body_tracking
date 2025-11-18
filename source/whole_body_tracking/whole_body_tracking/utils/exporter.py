@@ -36,20 +36,6 @@ def export_motion_policy_as_onnx(
     policy_exporter.export(path, filename)
 
 
-def export_multi_motion_policy_as_onnx(
-    env: ManagerBasedRLEnv,
-    actor_critic: object,
-    path: str,
-    normalizer: object | None = None,
-    filename="policy.onnx",
-    verbose=False,
-):
-    if not os.path.exists(path):
-        os.makedirs(path, exist_ok=True)
-    policy_exporter = _OnnxMotionPolicyExporter(env, actor_critic, normalizer, verbose)
-    policy_exporter.export(path, filename)
-
-
 class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
     def __init__(self, env: ManagerBasedRLEnv, actor_critic, normalizer=None, verbose=False):
         super().__init__(actor_critic, normalizer, verbose)

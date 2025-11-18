@@ -69,7 +69,6 @@ from isaaclab.envs.common import ViewerCfg
 # Import extensions to set up environment tasks
 import whole_body_tracking.tasks  # noqa: F401
 from whole_body_tracking.utils.my_on_policy_runner import MotionOnPolicyRunner as OnPolicyRunner
-from whole_body_tracking.utils.my_on_policy_runner import MultiMotionOnPolicyRunner as MultiMotionOnPolicyRunner
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -147,14 +146,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env = RslRlVecEnvWrapper(env)
 
     # create runner from rsl-rl
-    if args_cli.disable_multi_motion:
-        runner = OnPolicyRunner(
-            env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device,
-        )
-    else:
-        runner = MultiMotionOnPolicyRunner(
-            env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device,
-        )
+    runner = OnPolicyRunner(
+        env, 
+        agent_cfg.to_dict(), 
+        type="single_motion" if args_cli.disable_multi_motion else "multi_motion",
+        log_dir=log_dir, 
+        device=agent_cfg.device,
+    )
     
     # write git state to logs
     runner.add_git_repo_to_log(__file__)

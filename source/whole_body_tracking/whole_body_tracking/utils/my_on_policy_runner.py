@@ -1,5 +1,5 @@
 import os
-
+from typing import Literal
 from rsl_rl.env import VecEnv
 from rsl_rl.runners.on_policy_runner import OnPolicyRunner
 
@@ -23,10 +23,16 @@ class MyOnPolicyRunner(OnPolicyRunner):
 
 class MotionOnPolicyRunner(OnPolicyRunner):
     def __init__(
-        self, env: VecEnv, train_cfg: dict, log_dir: str | None = None, device="cpu", registry_name: str = None
+        self, env: VecEnv, 
+        train_cfg: dict, 
+        type: Literal["single_motion", "multi_motion", "new_multi_motion"],
+        log_dir: str | None = None, 
+        device="cpu", 
+        registry_name: str = None,
     ):
         super().__init__(env, train_cfg, log_dir, device)
         self.registry_name = registry_name
+        self.type = type
 
     def save(self, path: str, infos=None):
         """Save the model and training information."""
@@ -35,7 +41,12 @@ class MotionOnPolicyRunner(OnPolicyRunner):
             policy_path = path.split("model")[0]
             filename = policy_path.split("/")[-2] + ".onnx"
             export_motion_policy_as_onnx(
-                self.env.unwrapped, self.alg.policy, normalizer=self.obs_normalizer, path=policy_path, filename=filename
+                self.env.unwrapped, 
+                self.alg.policy, 
+                type=self.type,
+                normalizer=self.obs_normalizer, 
+                path=policy_path, 
+                filename=filename
             )
             attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename)
             wandb.save(policy_path + filename, base_path=os.path.dirname(policy_path))
@@ -46,13 +57,13 @@ class MotionOnPolicyRunner(OnPolicyRunner):
                 self.registry_name = None
 
 
-class MultiMotionOnPolicyRunner(OnPolicyRunner):
-    def __init__(
-        self, env: VecEnv, train_cfg: dict, log_dir: str | None = None, device="cpu", registry_name: str = None
-    ):
-        super().__init__(env, train_cfg, log_dir, device)
-        self.registry_name = registry_name
+# class MultiMotionOnPolicyRunner(OnPolicyRunner):
+#     def __init__(
+#         self, env: VecEnv, train_cfg: dict, log_dir: str | None = None, device="cpu", registry_name: str = None
+#     ):
+#         super().__init__(env, train_cfg, log_dir, device)
+#         self.registry_name = registry_name
 
-    def save(self, path: str, infos=None):
-        """Save the model and training information."""
-        super().save(path, infos)
+#     def save(self, path: str, infos=None):
+#         """Save the model and training information."""
+#         super().save(path, infos)
