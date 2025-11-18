@@ -128,7 +128,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         eye = (8.0, 8.0, 8.0),
         # eye = (0.0, 0.0, 10.0),
         lookat = (0.0, 0.0, 0.0),
-        env_index = 20,
+        env_index = 16 if env_cfg.scene.num_envs > 16 else env_cfg.scene.num_envs -1,
         origin_type = "env",
         # origin_type = "asset_root",
         asset_name = "robot",
@@ -189,15 +189,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
     export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
 
-    # export_motion_policy_as_onnx(
-    #     env.unwrapped,
-    #     policy_nn,
-    #     normalizer=normalizer,
-    #     path=export_model_dir,
-    #     filename="policy.onnx",
-    # )
+    export_motion_policy_as_onnx(
+        env.unwrapped,
+        policy_nn,
+        normalizer=normalizer,
+        path=export_model_dir,
+        filename="policy.onnx",
+    )
     
-    # attach_onnx_metadata(env.unwrapped, args_cli.wandb_run_path if args_cli.wandb_run_path else "none", export_model_dir)
+    attach_onnx_metadata(env.unwrapped, args_cli.wandb_run_path if args_cli.wandb_run_path else "none", export_model_dir)
     # reset environment
     try: # isaacsim 4.5
         obs, _ = env.get_observations()
