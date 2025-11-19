@@ -1,6 +1,6 @@
 from isaaclab.utils import configclass
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
-
+from whole_body_tracking.rsl_rl import RslRlAutoencoderPpoPolicyCfg, RslRlAutoencoderPpoAlgorithmCfg
 
 @configclass
 class G1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
@@ -47,3 +47,35 @@ class G1FlatLowFreqPPORunnerCfg(G1FlatPPORunnerCfg):
 class MultiG1FlatPPORunnerCfg(G1FlatPPORunnerCfg):
     max_iterations = 50000
     experiment_name = "multi_g1_flat"
+
+
+@configclass
+class MultiG1FlatAutoencoderPPORunnerCfg(MultiG1FlatPPORunnerCfg):
+    max_iterations = 50000
+    experiment_name = "multi_g1_flat_fsqvae"
+    policy = RslRlAutoencoderPpoPolicyCfg(
+        init_noise_std=1.0,
+        critic_hidden_dims=[512, 256, 128],
+        activation="elu",
+        latent_dim=32,
+        fsq_levels=[8, 4, 2],
+        encoder_hidden_dims=[512, 256, 128],
+        robot_decoder_hidden_dims=[512, 256, 128],
+        recover_decoder_hidden_dims=[512, 256, 128],
+    )
+    algorithm = RslRlAutoencoderPpoAlgorithmCfg(
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.005,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+        # specific to autoencoder ppo
+        reconstruction_loss_coef=1.0,
+    )

@@ -130,7 +130,7 @@ class Deploy_G1FlatMultiTrackingEnvCfg(Deploy_MultiTrackingEnvCfg):
         # multi motion tracking settings
         self.commands.motion.robot_name = "g1"
         self.commands.motion.dataset_dirs = [os.path.join(DATASETS_DIR, "LAFAN1_Retargeting_Dataset"),]
-        self.commands.motion.splits = ["train",]
+        self.commands.motion.splits =  ["walk_subset",] # ["train",]
         self.commands.motion.anchor_body_name = "torso_link"
         
         self.commands.motion.body_names = [

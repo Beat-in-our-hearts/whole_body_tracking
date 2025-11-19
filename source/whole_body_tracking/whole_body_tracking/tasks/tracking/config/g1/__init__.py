@@ -47,9 +47,9 @@ gym.register(
     },
 )
 
-####################################
+#######################################################
 # Register Deploy environments. Wo-State-Estimation
-####################################
+#######################################################
 
 gym.register(
     id="Deploy-Tracking-Flat-G1-v0",
@@ -62,7 +62,6 @@ gym.register(
 )
 
 
-
 gym.register(
     id="Deploy-MultiTracking-Flat-G1-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
@@ -70,5 +69,19 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": flat_env_cfg.Deploy_G1FlatMultiTrackingEnvCfg,
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:MultiG1FlatPPORunnerCfg",
+    },
+)
+
+
+#######################################################
+# Register Deploy environments. FSQVAE
+#######################################################
+gym.register(
+    id="Deploy-MultiTracking-Flat-G1-FSQVAE-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.Deploy_G1FlatMultiTrackingEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:MultiG1FlatAutoencoderPPORunnerCfg",
     },
 )
