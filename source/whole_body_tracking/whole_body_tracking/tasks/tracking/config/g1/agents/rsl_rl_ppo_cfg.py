@@ -50,15 +50,15 @@ class MultiG1FlatPPORunnerCfg(G1FlatPPORunnerCfg):
 
 
 @configclass
-class MultiG1FlatAutoencoderPPORunnerCfg(MultiG1FlatPPORunnerCfg):
-    max_iterations = 50000
-    experiment_name = "multi_g1_flat_fsqvae"
+class G1FlatAutoencoderPPORunnerCfg(MultiG1FlatPPORunnerCfg):
+    max_iterations = 15000
+    experiment_name = "g1_flat_fsqvae"
     policy = RslRlAutoencoderPpoPolicyCfg(
         init_noise_std=1.0,
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
         latent_dim=32,
-        fsq_levels=[8, 4, 2],
+        fsq_levels=[8, 8, 8],
         encoder_hidden_dims=[512, 256, 128],
         robot_decoder_hidden_dims=[512, 256, 128],
         recover_decoder_hidden_dims=[512, 256, 128],
@@ -79,3 +79,8 @@ class MultiG1FlatAutoencoderPPORunnerCfg(MultiG1FlatPPORunnerCfg):
         # specific to autoencoder ppo
         reconstruction_loss_coef=1.0,
     )
+    
+@configclass
+class MultiG1FlatAutoencoderPPORunnerCfg(G1FlatAutoencoderPPORunnerCfg):
+    max_iterations = 50000
+    experiment_name = "multi_g1_flat_fsqvae"

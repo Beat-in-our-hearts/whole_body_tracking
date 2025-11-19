@@ -49,19 +49,18 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
         self.time_step_total = self.joint_pos.shape[0]
         self.obs_full = obs_full
         
-        if obs_full:
-            self.observation_names = env.observation_manager.active_terms["policy"]
-            group_obs_term_dim = env.observation_manager._group_obs_term_dim["policy"]
-            self.observation_dims = [dims[-1] for dims in group_obs_term_dim]
-            
-            self.observation_history_lengths: list[int] = []
-            if env.observation_manager.cfg.policy.history_length is not None:
-                self.observation_history_lengths = [env.observation_manager.cfg.policy.history_length] * len(self.observation_names)
-            else:
-                for name in self.observation_names:
-                    term_cfg = env.observation_manager.cfg.policy.to_dict()[name]
-                    history_length = term_cfg["history_length"]
-                    self.observation_history_lengths.append(1 if history_length == 0 else history_length) 
+        self.observation_names = env.observation_manager.active_terms["policy"]
+        group_obs_term_dim = env.observation_manager._group_obs_term_dim["policy"]
+        self.observation_dims = [dims[-1] for dims in group_obs_term_dim]
+        
+        self.observation_history_lengths: list[int] = []
+        if env.observation_manager.cfg.policy.history_length is not None:
+            self.observation_history_lengths = [env.observation_manager.cfg.policy.history_length] * len(self.observation_names)
+        else:
+            for name in self.observation_names:
+                term_cfg = env.observation_manager.cfg.policy.to_dict()[name]
+                history_length = term_cfg["history_length"]
+                self.observation_history_lengths.append(1 if history_length == 0 else history_length) 
 
 
     def forward(self, *args):
@@ -120,7 +119,8 @@ class _OnnxMotionPolicyExporter(_OnnxPolicyExporter):
                 dynamic_axes={},
             )
         else:
-            obs = torch.zeros(1, self.actor[0].in_features)
+            total_obs_dim = sum(self.observation_dims)
+            obs = torch.zeros(1, total_obs_dim)
             time_step = torch.zeros(1, 1)
             torch.onnx.export(
                 self,
