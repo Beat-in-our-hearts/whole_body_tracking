@@ -61,8 +61,8 @@ class G1FlatAutoencoderPPORunnerCfg(MultiG1FlatPPORunnerCfg):
         actor_sg_dim=64,
         actor_sp_dim=93,
         encoder_hidden_dims=[512, 256, 128],
-        latent_dim=32,
-        fsq_levels=[8, 8, 8],
+        latent_dim=64,
+        fsq_levels=[8, 8, 8, 5, 5, 5],
         recover_decoder_hidden_dims=[512, 256, 128],
         robot_decoder_hidden_dims=[512, 256, 128],
     )
@@ -80,7 +80,7 @@ class G1FlatAutoencoderPPORunnerCfg(MultiG1FlatPPORunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
         # specific to autoencoder ppo
-        reconstruction_loss_coef=1.0,
+        reconstruction_loss_coef=1e-2,
     )
     
 @configclass

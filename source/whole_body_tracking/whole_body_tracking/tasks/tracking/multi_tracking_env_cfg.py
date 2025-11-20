@@ -110,9 +110,10 @@ class CommandsCfg:
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_pos = mdp.JointPositionActionCfg(asset_name="robot", joint_names=[".*"], use_default_offset=True)
-
-
+    joint_pos = mdp.JointPositionActionCfg(asset_name="robot",
+                                           joint_names=[".*"], 
+                                           use_default_offset=True,
+                                           clip={".*":(-10.0, 10.0)})
 @configclass
 class ObservationsCfg:
     """Observation specifications for the MDP."""
@@ -133,7 +134,7 @@ class ObservationsCfg:
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
-        actions = ObsTerm(func=mdp.last_action)
+        actions = ObsTerm(func=mdp.last_action, clip=(-10.0, 10.0)) # NOTE bug actions should be clipped here as well to avoid large values
 
         def __post_init__(self):
             self.enable_corruption = True
@@ -150,7 +151,7 @@ class ObservationsCfg:
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        actions = ObsTerm(func=mdp.last_action)
+        actions = ObsTerm(func=mdp.last_action, clip=(-10.0, 10.0)) # NOTE bug actions should be clipped here as well to avoid large values
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
