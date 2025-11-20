@@ -147,24 +147,23 @@ class _OnnxMultiMotionPolicyExporter(_OnnxPolicyExporter):
         super().__init__(actor_critic, normalizer, verbose)
         self.obs_full = obs_full
         
-        if obs_full:
-            self.observation_names = env.observation_manager.active_terms["policy"]
-            group_obs_term_dim = env.observation_manager._group_obs_term_dim["policy"]
-            self.observation_dims = [dims[-1] for dims in group_obs_term_dim]
-            
-            self.observation_history_lengths: list[int] = []
-            if env.observation_manager.cfg.policy.history_length is not None:
-                self.observation_history_lengths = [env.observation_manager.cfg.policy.history_length] * len(self.observation_names)
-            else:
-                for name in self.observation_names:
-                    term_cfg = env.observation_manager.cfg.policy.to_dict()[name]
-                    history_length = term_cfg["history_length"]
-                    self.observation_history_lengths.append(1 if history_length == 0 else history_length)
-            
-            if verbose:
-                print(f"Observation names: {self.observation_names}")
-                print(f"Observation dims: {self.observation_dims}")
-                print(f"Observation history lengths: {self.observation_history_lengths}")
+        self.observation_names = env.observation_manager.active_terms["policy"]
+        group_obs_term_dim = env.observation_manager._group_obs_term_dim["policy"]
+        self.observation_dims = [dims[-1] for dims in group_obs_term_dim]
+        
+        self.observation_history_lengths: list[int] = []
+        if env.observation_manager.cfg.policy.history_length is not None:
+            self.observation_history_lengths = [env.observation_manager.cfg.policy.history_length] * len(self.observation_names)
+        else:
+            for name in self.observation_names:
+                term_cfg = env.observation_manager.cfg.policy.to_dict()[name]
+                history_length = term_cfg["history_length"]
+                self.observation_history_lengths.append(1 if history_length == 0 else history_length)
+        
+        if verbose:
+            print(f"Observation names: {self.observation_names}")
+            print(f"Observation dims: {self.observation_dims}")
+            print(f"Observation history lengths: {self.observation_history_lengths}")
 
     def forward(self, *args):
         """
@@ -208,7 +207,8 @@ class _OnnxMultiMotionPolicyExporter(_OnnxPolicyExporter):
                 dynamic_axes={},
             )
         else:
-            obs = torch.zeros(1, self.actor[0].in_features)
+            total_obs_dim = sum(self.observation_dims)
+            obs = torch.zeros(1, total_obs_dim)
             # pass the inputs as a tuple
             torch.onnx.export(
                 self,
