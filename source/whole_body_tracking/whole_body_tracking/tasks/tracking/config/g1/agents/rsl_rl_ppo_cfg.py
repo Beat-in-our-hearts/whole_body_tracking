@@ -57,11 +57,14 @@ class G1FlatAutoencoderPPORunnerCfg(MultiG1FlatPPORunnerCfg):
         init_noise_std=1.0,
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
+        # AutoencoderPPO specific configs
+        actor_sg_dim=64,
+        actor_sp_dim=93,
+        encoder_hidden_dims=[512, 256, 128],
         latent_dim=32,
         fsq_levels=[8, 8, 8],
-        encoder_hidden_dims=[512, 256, 128],
-        robot_decoder_hidden_dims=[512, 256, 128],
         recover_decoder_hidden_dims=[512, 256, 128],
+        robot_decoder_hidden_dims=[512, 256, 128],
     )
     algorithm = RslRlAutoencoderPpoAlgorithmCfg(
         value_loss_coef=1.0,

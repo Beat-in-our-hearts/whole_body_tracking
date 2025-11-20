@@ -13,23 +13,30 @@ from isaaclab_rl.rsl_rl.rl_cfg import RslRlPpoActorCriticCfg, RslRlPpoAlgorithmC
 class RslRlAutoencoderPpoPolicyCfg(RslRlPpoActorCriticCfg):
     """Configuration for the AutoencoderPPO policy."""
 
-    class_name: str = "ActorCriticAutoencoder"
-    """The policy class name. Default is ActorCriticAutoencoder."""
-
-    latent_dim: int = MISSING
-    """The latent dimension for FSQVAE."""
-
-    fsq_levels: list[int] = MISSING
-    """The FSQ levels for quantization."""
+    class_name: str = "ActorCriticFSQVAE"
+    """The policy class name. Default is ActorCriticFSQVAE."""
+    
+    actor_sg_dim: int = MISSING
+    """The state-goal dimension for the actor."""
+    
+    actor_sp_dim: int = MISSING
+    """The state-proprioception dimension for the actor."""
 
     encoder_hidden_dims: list[int] = MISSING
     """The hidden dimensions of the encoder network."""
+    
+    latent_dim: int = MISSING
+    """The latent dimension for FSQVAE."""
+    
+    fsq_levels: list[int] = MISSING
+    """The FSQ levels for quantization."""
+
+    recover_decoder_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the recovery decoder network."""
 
     robot_decoder_hidden_dims: list[int] = MISSING
     """The hidden dimensions of the robot decoder network."""
 
-    recover_decoder_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the recovery decoder network."""
 
 
 
@@ -37,10 +44,10 @@ class RslRlAutoencoderPpoPolicyCfg(RslRlPpoActorCriticCfg):
 class RslRlAutoencoderPpoAlgorithmCfg(RslRlPpoAlgorithmCfg):
     """Configuration for the AutoencoderPPO algorithm."""
 
-    class_name: str = "AutoencoderPPO"
+    class_name: str = "FSQVAE_PPO"
     """The algorithm class name. Default is AutoencoderPPO."""
 
-    reconstruction_loss_coef: float = 1.0
+    reconstruction_loss_coef: float = MISSING
     """The coefficient for the reconstruction loss."""
 
 
