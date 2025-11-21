@@ -1,8 +1,8 @@
 from isaaclab.utils import configclass
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
 from whole_body_tracking.rsl_rl import (
-    RslRlAutoencoderPpoPolicyCfg, 
-    RslRlAutoencoderPpoAlgorithmCfg,
+    RslRl_VAE_PPOPolicyCfg, 
+    RslRl_VAE_PPOAlgorithmCfg,
     RslRlFSQVAEPpoPolicyCfg,
     RslRlFSQVAEPpoAlgorithmCfg,
 )
@@ -60,7 +60,7 @@ class MultiG1FlatPPORunnerCfg(G1FlatPPORunnerCfg):
 class G1Flat_VAE_PPORunnerCfg(G1FlatPPORunnerCfg):
     max_iterations = 15000
     experiment_name = "g1_flat_vae"
-    policy = RslRlAutoencoderPpoPolicyCfg(
+    policy = RslRl_VAE_PPOPolicyCfg(
         init_noise_std=1.0,
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
@@ -72,7 +72,7 @@ class G1Flat_VAE_PPORunnerCfg(G1FlatPPORunnerCfg):
         recover_decoder_hidden_dims=[128, 256, 512],
         robot_decoder_hidden_dims=[512, 256, 128],
     )
-    algorithm = RslRlAutoencoderPpoAlgorithmCfg(
+    algorithm = RslRl_VAE_PPOAlgorithmCfg(
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,

@@ -10,11 +10,11 @@ from isaaclab_rl.rsl_rl.rl_cfg import RslRlPpoActorCriticCfg, RslRlPpoAlgorithmC
 
 
 @configclass
-class RslRlAutoencoderPpoPolicyCfg(RslRlPpoActorCriticCfg):
-    """Configuration for the AutoencoderPPO policy."""
+class RslRl_VAE_PPOPolicyCfg(RslRlPpoActorCriticCfg):
+    """Configuration for the VAE_PPO policy."""
 
-    class_name: str = "ActorCriticAutoencoder"
-    """The policy class name. Default is ActorCriticAutoencoder."""
+    class_name: str = "ActorCriticVAE"
+    """The policy class name. Default is ActorCriticVAE."""
     
     actor_sg_dim: int = MISSING
     """The state-goal dimension for the actor."""
@@ -36,11 +36,11 @@ class RslRlAutoencoderPpoPolicyCfg(RslRlPpoActorCriticCfg):
     
 
 @configclass
-class RslRlAutoencoderPpoAlgorithmCfg(RslRlPpoAlgorithmCfg):
-    """Configuration for the AutoencoderPPO algorithm."""
+class RslRl_VAE_PPOAlgorithmCfg(RslRlPpoAlgorithmCfg):
+    """Configuration for the VAE_PPO algorithm."""
 
-    class_name: str = "AutoencoderPPO"
-    """The algorithm class name. Default is AutoencoderPPO."""
+    class_name: str = "VAE_PPO"
+    """The algorithm class name. Default is VAE_PPO."""
     
     reconstruction_loss_coef: float = MISSING
     """The coefficient for the reconstruction loss."""
