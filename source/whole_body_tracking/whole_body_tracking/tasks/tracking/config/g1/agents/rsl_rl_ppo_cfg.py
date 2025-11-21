@@ -63,7 +63,7 @@ class G1FlatAutoencoderPPORunnerCfg(MultiG1FlatPPORunnerCfg):
         encoder_hidden_dims=[512, 256, 128],
         latent_dim=64,
         fsq_levels=[8, 8, 8, 5, 5, 5],
-        recover_decoder_hidden_dims=[512, 256, 128],
+        recover_decoder_hidden_dims=[128, 256, 512],
         robot_decoder_hidden_dims=[512, 256, 128],
     )
     algorithm = RslRlAutoencoderPpoAlgorithmCfg(
