@@ -80,7 +80,7 @@ class G1FlatAutoencoderPPORunnerCfg(MultiG1FlatPPORunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
         # specific to autoencoder ppo
-        reconstruction_loss_coef=1e-2,
+        reconstruction_loss_coef=0.0,
     )
     
 @configclass
