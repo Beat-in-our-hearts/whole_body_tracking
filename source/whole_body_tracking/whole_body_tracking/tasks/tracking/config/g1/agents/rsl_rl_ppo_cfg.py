@@ -100,7 +100,7 @@ class MultiG1Flat_VAE_PPORunnerCfg(G1Flat_VAE_PPORunnerCfg):
 ###################################
 
 @configclass
-class G1FlatFSQVAEPPORunnerCfg(G1FlatPPORunnerCfg):
+class G1Flat_FSQVAE_PPORunnerCfg(G1FlatPPORunnerCfg):
     max_iterations = 15000
     experiment_name = "g1_flat_fsqvae"
     policy = RslRl_FSQVAE_PpoPolicyCfg(
@@ -134,6 +134,6 @@ class G1FlatFSQVAEPPORunnerCfg(G1FlatPPORunnerCfg):
     )
     
 @configclass
-class MultiG1FlatFSQVAEPPORunnerCfg(G1FlatFSQVAEPPORunnerCfg):
+class MultiG1Flat_FSQVAE_PPORunnerCfg(G1Flat_FSQVAE_PPORunnerCfg):
     max_iterations = 50000
     experiment_name = "multi_g1_flat_fsqvae"
