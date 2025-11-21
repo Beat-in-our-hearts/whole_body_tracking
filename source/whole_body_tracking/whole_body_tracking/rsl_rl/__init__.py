@@ -1,1 +1,6 @@
-from .rl_cfg import RslRlAutoencoderPpoPolicyCfg, RslRlAutoencoderPpoAlgorithmCfg
+from .rl_cfg import (
+    RslRlAutoencoderPpoPolicyCfg, 
+    RslRlAutoencoderPpoAlgorithmCfg,
+    RslRlFSQVAEPpoPolicyCfg,
+    RslRlFSQVAEPpoAlgorithmCfg,
+)

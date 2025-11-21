@@ -74,6 +74,30 @@ gym.register(
 
 
 #######################################################
+# Register Deploy environments. VAE
+#######################################################
+gym.register(
+    id="Deploy-Tracking-Flat-G1-VAE-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.Deploy_G1FlatTrackingEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1Flat_VAE_PPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="Deploy-MultiTracking-Flat-G1-VAE-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.Deploy_G1FlatMultiTrackingEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:MultiG1Flat_VAE_PPORunnerCfg",
+    },
+)
+
+
+#######################################################
 # Register Deploy environments. FSQVAE
 #######################################################
 
