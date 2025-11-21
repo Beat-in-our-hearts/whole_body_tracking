@@ -3,8 +3,8 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 from whole_body_tracking.rsl_rl import (
     RslRl_VAE_PPOPolicyCfg, 
     RslRl_VAE_PPOAlgorithmCfg,
-    RslRlFSQVAEPpoPolicyCfg,
-    RslRlFSQVAEPpoAlgorithmCfg,
+    RslRl_FSQVAE_PpoPolicyCfg,
+    RslRl_FSQVAE_PpoAlgorithmCfg,
 )
 
 @configclass
@@ -103,7 +103,7 @@ class MultiG1Flat_VAE_PPORunnerCfg(G1Flat_VAE_PPORunnerCfg):
 class G1FlatFSQVAEPPORunnerCfg(G1FlatPPORunnerCfg):
     max_iterations = 15000
     experiment_name = "g1_flat_fsqvae"
-    policy = RslRlFSQVAEPpoPolicyCfg(
+    policy = RslRl_FSQVAE_PpoPolicyCfg(
         init_noise_std=1.0,
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
@@ -116,7 +116,7 @@ class G1FlatFSQVAEPPORunnerCfg(G1FlatPPORunnerCfg):
         recover_decoder_hidden_dims=[128, 256, 512],
         robot_decoder_hidden_dims=[512, 256, 128],
     )
-    algorithm = RslRlFSQVAEPpoAlgorithmCfg(
+    algorithm = RslRl_FSQVAE_PpoAlgorithmCfg(
         value_loss_coef=1.0,
         use_clipped_value_loss=True,
         clip_param=0.2,

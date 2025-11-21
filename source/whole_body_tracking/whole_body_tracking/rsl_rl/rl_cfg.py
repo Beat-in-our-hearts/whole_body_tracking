@@ -47,7 +47,7 @@ class RslRl_VAE_PPOAlgorithmCfg(RslRlPpoAlgorithmCfg):
 
 
 @configclass
-class RslRlFSQVAEPpoPolicyCfg(RslRlPpoActorCriticCfg):
+class RslRl_FSQVAE_PpoPolicyCfg(RslRlPpoActorCriticCfg):
     """Configuration for the FSQVAEPPO policy."""
 
     class_name: str = "ActorCriticFSQVAE"
@@ -76,7 +76,7 @@ class RslRlFSQVAEPpoPolicyCfg(RslRlPpoActorCriticCfg):
 
 
 @configclass
-class RslRlFSQVAEPpoAlgorithmCfg(RslRlPpoAlgorithmCfg):
+class RslRl_FSQVAE_PpoAlgorithmCfg(RslRlPpoAlgorithmCfg):
     """Configuration for the FSQVAEPPO algorithm."""
 
     class_name: str = "FSQVAE_PPO"
