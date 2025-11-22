@@ -108,8 +108,8 @@ class G1Flat_FSQVAE_PPORunnerCfg(G1FlatPPORunnerCfg):
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
         # FSQVAE specific configs
-        actor_sg_dim=64,
-        actor_sp_dim=93,
+        actor_sg_dim=64-6,
+        actor_sp_dim=93+6,
         encoder_hidden_dims=[512, 256, 128],
         latent_dim=64,
         fsq_levels=[8,8,8,8,8,8,8,8],
