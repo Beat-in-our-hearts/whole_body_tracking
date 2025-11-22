@@ -344,6 +344,19 @@ class MotionCommand(CommandTerm):
             self.goal_body_visualizers[i].visualize(self.body_pos_relative_w[:, i], self.body_quat_relative_w[:, i])
 
 
+    def motion_robot_joint_pos_vel(self, interval: int, frames: int):
+        """
+        get `frames=M` future frame state, every frame has `interval=T`
+        """
+        # [N, 1] -> [N, M] broadcasting
+        offsets = interval * torch.arange(frames, dtype=self.time_steps.dtype, device=self.time_steps.device)
+        self.future_time_steps = self.time_steps.unsqueeze(-1) + offsets
+        # clamp not big than the time_step_total 
+        self.future_time_steps = torch.clamp(self.future_time_steps, max=self.motion.time_step_total-1)
+        
+        return torch.cat([self.motion.joint_pos[self.future_time_steps], 
+                          self.motion.joint_vel[self.future_time_steps]], dim=-1)
+        
 @configclass
 class MotionCommandCfg(CommandTermCfg):
     """Configuration for the motion command."""
