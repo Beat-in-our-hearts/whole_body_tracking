@@ -113,6 +113,7 @@ class G1Flat_FSQVAE_PPORunnerCfg(G1FlatPPORunnerCfg):
         encoder_hidden_dims=[512, 256, 128],
         latent_dim=64,
         fsq_levels=[8,8,8,8,8,8,8,8],
+        num_codebooks=1,
         recover_decoder_hidden_dims=[128, 256, 512],
         robot_decoder_hidden_dims=[512, 256, 128],
     )
@@ -162,7 +163,8 @@ class SONIC_G1Flat_FSQVAE_PPORunnerCfg(SONIC_G1FlatPPORunnerCfg):
         actor_sp_dim=99,
         encoder_hidden_dims=[512, 256, 128],
         latent_dim=64,
-        fsq_levels=[8,8,8,8,8,8,8,8],
+        fsq_levels=[8,8,8,5,5,5],
+        num_codebooks=4,
         recover_decoder_hidden_dims=[128, 256, 512],
         robot_decoder_hidden_dims=[512, 256, 128],
     )

@@ -67,6 +67,9 @@ class RslRl_FSQVAE_PpoPolicyCfg(RslRlPpoActorCriticCfg):
     
     fsq_levels: list[int] = MISSING
     """The FSQ levels for quantization."""
+    
+    num_codebooks: int = MISSING
+    """The number of codebooks for FSQ quantization."""
 
     recover_decoder_hidden_dims: list[int] = MISSING
     """The hidden dimensions of the recovery decoder network."""
