@@ -65,8 +65,8 @@ class G1Flat_VAE_PPORunnerCfg(G1FlatPPORunnerCfg):
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
         # VAE specific configs
-        actor_sg_dim=64,
-        actor_sp_dim=93,
+        actor_sg_dim=64-6,
+        actor_sp_dim=93+6,
         encoder_hidden_dims=[512, 256, 128],
         latent_dim=64,
         recover_decoder_hidden_dims=[128, 256, 512],
