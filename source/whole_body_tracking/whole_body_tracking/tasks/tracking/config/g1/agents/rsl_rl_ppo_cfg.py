@@ -187,17 +187,16 @@ class SONIC_G1Flat_FSQVAE_PPORunnerCfg(SONIC_G1FlatPPORunnerCfg):
     experiment_name = "sonic_g1_flat_fsqvae"
     policy = RslRl_FSQVAE_PpoPolicyCfg(
         init_noise_std=1.0,
+        actor_hidden_dims=[512, 256, 128],
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
         # FSQVAE specific configs
         actor_sg_dim=580,
-        actor_sp_dim=99,
-        encoder_hidden_dims=[512, 256, 128],
-        latent_dim=64,
+        fsqvae_latent_dim=64,
         fsq_levels=[8,8,8,5,5,5],
-        num_codebooks=4,
-        recover_decoder_hidden_dims=[128, 256, 512],
-        robot_decoder_hidden_dims=[512, 256, 128],
+        num_codebooks=6,
+        robot_encoder_hidden_dims=[512, 256],
+        recover_decoder_hidden_dims=[256, 512],
     )
     algorithm = RslRl_FSQVAE_PpoAlgorithmCfg(
         value_loss_coef=1.0,
@@ -216,38 +215,38 @@ class SONIC_G1Flat_FSQVAE_PPORunnerCfg(SONIC_G1FlatPPORunnerCfg):
         reconstruction_loss_coef=1e-2,
     )
     
-@configclass
-class SONIC_G1Flat_FSQVAE_V2_PPORunnerCfg(SONIC_G1FlatPPORunnerCfg):
-    max_iterations = 15000
-    experiment_name = "sonic_g1_flat_fsqvae"
-    policy = RslRl_FSQVAE_PpoPolicyCfg(
-        class_name="ActorCriticFSQVAE_V2",
-        init_noise_std=1.0,
-        critic_hidden_dims=[512, 256, 128],
-        activation="elu",
-        # FSQVAE specific configs
-        actor_sg_dim=580,
-        actor_sp_dim=99,
-        encoder_hidden_dims=[512, 256, 128],
-        latent_dim=64,
-        fsq_levels=[8,8,8,5,5,5],
-        num_codebooks=4,
-        recover_decoder_hidden_dims=[128, 256, 512],
-        robot_decoder_hidden_dims=[512, 256, 128],
-    )
-    algorithm = RslRl_FSQVAE_PpoAlgorithmCfg(
-        value_loss_coef=1.0,
-        use_clipped_value_loss=True,
-        clip_param=0.2,
-        entropy_coef=0.005,
-        num_learning_epochs=5,
-        num_mini_batches=4,
-        learning_rate=1.0e-3,
-        schedule="adaptive",
-        gamma=0.99,
-        lam=0.95,
-        desired_kl=0.01,
-        max_grad_norm=1.0,
-        # specific to autoencoder ppo
-        reconstruction_loss_coef=1e-2,
-    )
+# @configclass
+# class SONIC_G1Flat_FSQVAE_V2_PPORunnerCfg(SONIC_G1FlatPPORunnerCfg):
+#     max_iterations = 15000
+#     experiment_name = "sonic_g1_flat_fsqvae"
+#     policy = RslRl_FSQVAE_PpoPolicyCfg(
+#         class_name="ActorCriticFSQVAE_V2",
+#         init_noise_std=1.0,
+#         critic_hidden_dims=[512, 256, 128],
+#         activation="elu",
+#         # FSQVAE specific configs
+#         actor_sg_dim=580,
+#         actor_sp_dim=99,
+#         encoder_hidden_dims=[512, 256, 128],
+#         latent_dim=64,
+#         fsq_levels=[8,8,8,5,5,5],
+#         num_codebooks=4,
+#         recover_decoder_hidden_dims=[128, 256, 512],
+#         robot_decoder_hidden_dims=[512, 256, 128],
+#     )
+#     algorithm = RslRl_FSQVAE_PpoAlgorithmCfg(
+#         value_loss_coef=1.0,
+#         use_clipped_value_loss=True,
+#         clip_param=0.2,
+#         entropy_coef=0.005,
+#         num_learning_epochs=5,
+#         num_mini_batches=4,
+#         learning_rate=1.0e-3,
+#         schedule="adaptive",
+#         gamma=0.99,
+#         lam=0.95,
+#         desired_kl=0.01,
+#         max_grad_norm=1.0,
+#         # specific to autoencoder ppo
+#         reconstruction_loss_coef=1e-2,
+#     )

@@ -50,13 +50,7 @@ class RslRl_FSQVAE_PpoPolicyCfg(RslRlPpoActorCriticCfg):
     actor_sg_dim: int = MISSING
     """The state-goal dimension for the actor."""
     
-    actor_sp_dim: int = MISSING
-    """The state-proprioception dimension for the actor."""
-
-    encoder_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the encoder network."""
-    
-    latent_dim: int = MISSING
+    fsqvae_latent_dim: int = MISSING
     """The latent dimension for FSQVAE."""
     
     fsq_levels: list[int] = MISSING
@@ -65,11 +59,11 @@ class RslRl_FSQVAE_PpoPolicyCfg(RslRlPpoActorCriticCfg):
     num_codebooks: int = MISSING
     """The number of codebooks for FSQ quantization."""
 
+    robot_encoder_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the encoder network."""
+    
     recover_decoder_hidden_dims: list[int] = MISSING
     """The hidden dimensions of the recovery decoder network."""
-
-    robot_decoder_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the robot decoder network."""
 
 
 @configclass
