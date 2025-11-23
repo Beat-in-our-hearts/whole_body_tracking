@@ -10,6 +10,7 @@ from whole_body_tracking.tasks import DATASETS_DIR
 import os
 
 from whole_body_tracking.tasks.tracking.sonic_tracking_env_cfg import TrackingEnvCfg as SONIC_TrackingEnvCfg
+from whole_body_tracking.tasks.tracking.sonic_multi_tracking_env_cfg import TrackingEnvCfg as SONIC_MultiTrackingEnvCfg
 
 @configclass
 class G1FlatEnvCfg(TrackingEnvCfg):
@@ -182,3 +183,36 @@ class SONIC_G1FlatTrackingEnvCfg(SONIC_TrackingEnvCfg):
             "right_wrist_yaw_link",
         ]
         
+class SONIC_G1FlatMultiTrackingEnvCfg(SONIC_MultiTrackingEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+
+        self.rewards.motion_global_anchor_pos.weight = 0.0
+
+        self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.actions.joint_pos.scale = G1_ACTION_SCALE
+        
+        # multi motion tracking settings
+        self.commands.motion.robot_name = "g1"
+        self.commands.motion.dataset_dirs = [os.path.join(DATASETS_DIR, "LAFAN1_Retargeting_Dataset"),]
+                                            #  os.path.join(DATASETS_DIR, "OMOMO_Retargeting_Dataset")]
+        self.commands.motion.splits = ["walk_subset", ]
+                                    #    ["train", "test"]]
+        
+        self.commands.motion.anchor_body_name = "torso_link"
+        self.commands.motion.body_names = [
+            "pelvis",
+            "left_hip_roll_link",
+            "left_knee_link",
+            "left_ankle_roll_link",
+            "right_hip_roll_link",
+            "right_knee_link",
+            "right_ankle_roll_link",
+            "torso_link",
+            "left_shoulder_roll_link",
+            "left_elbow_link",
+            "left_wrist_yaw_link",
+            "right_shoulder_roll_link",
+            "right_elbow_link",
+            "right_wrist_yaw_link",
+        ]

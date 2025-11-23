@@ -130,3 +130,15 @@ class SONIC_G1Flat_FSQVAE_PPORunnerCfg(SONIC_G1FlatPPORunnerCfg):
         # specific to autoencoder ppo
         reconstruction_loss_coef=1e-2,
     )
+    
+# VAE Multi Tracking Env Runner Config
+@configclass
+class SONIC_Multi_G1Flat_VAE_PPORunnerCfg(SONIC_G1Flat_VAE_PPORunnerCfg):
+    max_iterations = 50000
+    experiment_name = "sonic_multi_g1_flat_vae"
+    
+# FSQVAE Multi Tracking Env Runner Config
+@configclass
+class SONIC_Multi_G1Flat_FSQVAE_PPORunnerCfg(SONIC_G1Flat_FSQVAE_PPORunnerCfg):
+    max_iterations = 50000
+    experiment_name = "sonic_multi_g1_flat_fsqvae"
