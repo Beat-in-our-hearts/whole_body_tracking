@@ -18,21 +18,15 @@ class RslRl_VAE_PPOPolicyCfg(RslRlPpoActorCriticCfg):
     
     actor_sg_dim: int = MISSING
     """The state-goal dimension for the actor."""
-    
-    actor_sp_dim: int = MISSING
-    """The state-proprioception dimension for the actor."""
 
-    encoder_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the encoder network."""
-    
-    latent_dim: int = MISSING
+    vae_latent_dim: int = MISSING
     """The latent dimension for the Autoencoder."""
+
+    robot_encoder_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the encoder network."""
 
     recover_decoder_hidden_dims: list[int] = MISSING
     """The hidden dimensions of the recovery decoder network."""
-
-    robot_decoder_hidden_dims: list[int] = MISSING
-    """The hidden dimensions of the robot decoder network."""
     
 
 @configclass
