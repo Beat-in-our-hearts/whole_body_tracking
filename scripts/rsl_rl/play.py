@@ -192,8 +192,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     
     # export policy to onnx/jit
     export_model_dir = os.path.join(os.path.dirname(resume_path), "exported")
-    export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
-
+    
+    # TODO fsq code use the einops, not supported in jit export for now
+    try:
+        export_policy_as_jit(policy_nn, normalizer=normalizer, path=export_model_dir, filename="policy.pt")
+        print(f"[INFO] Exported JIT policy to: {os.path.join(export_model_dir, 'policy.pt')}")
+    except Exception as e:
+        print(f"[ERROR] Failed to export JIT policy: {e}")
+        
     # Determine export type
     export_type = "single_motion" if args_cli.disable_multi_motion else "multi_motion"
 
