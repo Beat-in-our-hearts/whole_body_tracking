@@ -154,6 +154,7 @@ class SONIC_G1Flat_VAE_PPORunnerCfg(SONIC_G1FlatPPORunnerCfg):
     experiment_name = "sonic_g1_flat_vae"
     policy = RslRl_VAE_PPOPolicyCfg(
         init_noise_std=1.0,
+        actor_hidden_dims=[512, 256, 128],
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
         # VAE specific configs
