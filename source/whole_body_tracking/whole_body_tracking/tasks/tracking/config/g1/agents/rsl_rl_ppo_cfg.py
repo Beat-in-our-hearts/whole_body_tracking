@@ -110,7 +110,7 @@ class SONIC_G1Flat_FSQVAE_PPORunnerCfg(SONIC_G1FlatPPORunnerCfg):
         actor_sg_dim=580,
         fsqvae_latent_dim=64,
         fsq_levels=[8,8,8,5,5,5],
-        num_codebooks=6,
+        num_codebooks=12,
         robot_encoder_hidden_dims=[512, 256],
         recover_decoder_hidden_dims=[256, 512],
     )
