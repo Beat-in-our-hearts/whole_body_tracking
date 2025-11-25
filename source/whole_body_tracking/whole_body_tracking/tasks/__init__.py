@@ -5,6 +5,9 @@ from isaaclab_tasks.utils import import_packages
 
 # Define DATASETS_DIR before importing packages to avoid circular import
 DATASETS_DIR: str = str(Path(__file__).parent.parent.parent.parent.parent / "datasets" / "npz_datasets")
+NPZ_DATASETS_DIR: str = DATASETS_DIR
+SMPLX_DATASETS_DIR: str = str(Path(__file__).parent.parent.parent.parent.parent / "datasets" / "smplx_datasets")
+
 
 ##
 # Register Gym environments.

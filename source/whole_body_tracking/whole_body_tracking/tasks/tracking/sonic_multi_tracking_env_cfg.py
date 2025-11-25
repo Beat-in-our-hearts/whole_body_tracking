@@ -163,6 +163,64 @@ class ObservationsCfg:
     critic: PrivilegedCfg = PrivilegedCfg()
 
 
+
+@configclass
+class ObservationsCfgV2:
+    """Observation specifications for the MDP."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+        # observation terms (order preserved)
+        command = ObsTerm(func=mdp.motion_robot_joint_pos_vel, 
+                          params={"command_name": "motion", 
+                                  "interval": 5, # 0.1s / 0.02s = 5
+                                  "frames": 10,})
+        smplx_command = ObsTerm(func=mdp.motion_smplx_pose_body,
+                                params={"command_name": "motion",
+                                        "interval": 5,
+                                        "frames": 10,})
+        
+        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05))
+        
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        projected_gravity = ObsTerm(func=mdp.projected_gravity, noise=Unoise(n_min=-0.05, n_max=0.05))
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        actions = ObsTerm(func=mdp.last_action, clip=(-10.0, 10.0)) # NOTE bug actions should be clipped here as well to avoid large values
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = True
+
+    @configclass
+    class PrivilegedCfg(ObsGroup):
+        command = ObsTerm(func=mdp.motion_robot_joint_pos_vel, 
+                          params={"command_name": "motion", 
+                                  "interval": 5, # 0.1s / 0.02s = 5
+                                  "frames": 10,})
+        
+        smplx_command = ObsTerm(func=mdp.motion_smplx_pose_body,
+                        params={"command_name": "motion",
+                                "interval": 5,
+                                "frames": 10,})
+        
+        motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
+        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
+        body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
+        body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
+        
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
+        projected_gravity = ObsTerm(func=mdp.projected_gravity)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        actions = ObsTerm(func=mdp.last_action, clip=(-10.0, 10.0)) # NOTE bug actions should be clipped here as well to avoid large values
+
+    # observation groups
+    policy: PolicyCfg = PolicyCfg()
+    critic: PrivilegedCfg = PrivilegedCfg()
+
 @configclass
 class EventCfg:
     """Configuration for events."""

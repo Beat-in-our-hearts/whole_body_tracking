@@ -971,6 +971,39 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
         """
         return self.dataloader.motion_buffer.smplx_pose_body[self.global_time_steps]
 
+    def motion_smplx_pose_body(self, interval: int, frames: int):
+        """Get future SMPL-X pose body data from multiple motions.
+        
+        This method computes `frames=M` future SMPL-X pose body states where each frame is 
+        separated by `interval=T` timesteps. It handles multi-motion buffer indexing where 
+        different environments may be at different motions.
+        
+        Args:
+            interval: Number of timesteps between sampled frames (stride/interval).
+            frames: Number of future frames to sample (sequence length).
+        
+        Returns:
+            Tensor of shape (num_envs, frames, pose_body_dim) containing concatenated
+            future SMPL-X pose body data across all environments and motions.
+            
+        Shape breakdown:
+            - global_time_steps: [num_envs]
+            - offsets: [frames]
+            - future_global_time_steps: [num_envs, frames] (broadcasting)
+            - smplx_pose_body: [total_timesteps, pose_body_dim]
+            - output: [num_envs, frames, pose_body_dim]
+        """
+        # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
+        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
+        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
+        
+        # Clamp to max valid global timestep for each motion
+        # Each environment may be at a different motion, so we need per-motion clamping
+        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
+        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
+        
+        # Index into motion_buffer using global timesteps (abstracted away motion_id/time_steps)
+        return self.dataloader.motion_buffer.smplx_pose_body[self.future_global_time_steps]
 
 @configclass
 class SONIC_MultiMotionCommandCfg(CommandTermCfg):

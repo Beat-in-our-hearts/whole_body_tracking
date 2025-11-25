@@ -89,6 +89,16 @@ def motion_robot_joint_pos_vel(
     interval: int,
     frames: int,
     ) -> torch.Tensor:
-    command: MotionCommand = env.command_manager.get_term(command_name)
+    command = env.command_manager.get_term(command_name)
 
     return command.motion_robot_joint_pos_vel(interval, frames).view(env.num_envs, -1)
+
+def motion_smplx_pose_body(
+    env: ManagerBasedEnv, 
+    command_name: str,
+    interval: int,
+    frames: int,
+    ) -> torch.Tensor:
+    command = env.command_manager.get_term(command_name)
+
+    return command.motion_smplx_pose_body(interval, frames).view(env.num_envs, -1)
