@@ -5,7 +5,10 @@ from whole_body_tracking.rsl_rl import (
     RslRl_VAE_PPOAlgorithmCfg,
     RslRl_FSQVAE_PpoPolicyCfg,
     RslRl_FSQVAE_PpoAlgorithmCfg,
+    RslRl_SONIC_PpoPolicyCfg,
+    RslRl_SONIC_PpoAlgorithmCfg,
 )
+
 
 @configclass
 class G1FlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
@@ -142,3 +145,45 @@ class SONIC_Multi_G1Flat_VAE_PPORunnerCfg(SONIC_G1Flat_VAE_PPORunnerCfg):
 class SONIC_Multi_G1Flat_FSQVAE_PPORunnerCfg(SONIC_G1Flat_FSQVAE_PPORunnerCfg):
     max_iterations = 50000
     experiment_name = "sonic_multi_g1_flat_fsqvae"
+
+
+# Only Support Multi Tracking Env for SONIC + VAE/FSQVAE
+# SONIC Multi Tracking Env Runner Config
+@configclass
+class SONIC_Multi_G1Flat_SMPLX_PPORunnerCfg(G1FlatPPORunnerCfg):
+    max_iterations = 50_000
+    experiment_name = "sonic_multi_g1_flat_smplx"
+    policy = RslRl_SONIC_PpoPolicyCfg(
+        init_noise_std=1.0,
+        actor_hidden_dims=[512, 256, 128],
+        critic_hidden_dims=[512, 256, 128],
+        activation="elu",
+        # SONIC specific configs
+        actor_sg_dim=580,
+        actor_sh_dim=630, # human state dimension 63x10
+        fsqvae_latent_dim=64,
+        fsq_levels=[8,8,8,5,5,5],
+        num_codebooks=16,
+        robot_encoder_hidden_dims=[512, 256],
+        human_encoder_hidden_dims=[512, 256],
+        recover_decoder_hidden_dims=[256, 512],
+    )
+    algorithm = RslRl_SONIC_PpoAlgorithmCfg(
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.005,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+        # specific to autoencoder ppo
+        reconstruction_loss_coef_sg=1e-1,
+        reconstruction_loss_coef_sh=1e-2,
+        token_loss_coef=1e-2,
+        cycle_loss_coef=1e-2,
+    )

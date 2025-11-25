@@ -77,3 +77,52 @@ class RslRl_FSQVAE_PpoAlgorithmCfg(RslRlPpoAlgorithmCfg):
     """The coefficient for the reconstruction loss."""
 
 
+@configclass
+class RslRl_SONIC_PpoPolicyCfg(RslRlPpoActorCriticCfg):
+    """Configuration for the SONIC_PPO policy."""
+
+    class_name: str = "ActorCriticSONIC"
+    """The policy class name. Default is ActorCriticSONIC."""
+    
+    actor_sg_dim: int = MISSING
+    """The state-goal dimension for the actor."""
+    
+    actor_sh_dim: int = MISSING
+    """The human state dimension for the actor."""
+    
+    fsqvae_latent_dim: int = MISSING
+    """The latent dimension for FSQVAE."""
+    
+    fsq_levels: list[int] = MISSING
+    """The FSQ levels for quantization."""
+    
+    num_codebooks: int = MISSING
+    """The number of codebooks for FSQ quantization."""
+
+    robot_encoder_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the robot encoder network."""
+    
+    human_encoder_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the human encoder network."""
+    
+    recover_decoder_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the recovery decoder network."""
+    
+@configclass
+class RslRl_SONIC_PpoAlgorithmCfg(RslRlPpoAlgorithmCfg):
+    """Configuration for the SONIC_PPO algorithm."""
+
+    class_name: str = "SONIC_PPO"
+    """The algorithm class name. Default is SONIC_PPO."""
+    
+    reconstruction_loss_coef_sg: float = MISSING
+    """The coefficient for the robot goal state reconstruction loss."""
+    
+    reconstruction_loss_coef_sh: float = MISSING
+    """The coefficient for the human state reconstruction loss."""
+    
+    token_loss_coef: float = MISSING
+    """The coefficient for the latent token alignment loss."""
+    
+    cycle_loss_coef: float = MISSING
+    """The coefficient for the cycle consistency loss."""

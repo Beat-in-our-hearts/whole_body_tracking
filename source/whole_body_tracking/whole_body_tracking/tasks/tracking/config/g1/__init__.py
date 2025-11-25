@@ -1,6 +1,6 @@
 import gymnasium as gym
 
-from . import agents, flat_env_cfg
+from . import agents, flat_env_cfg, sonic_flat_env_cfg
 
 ##
 # Register Gym environments.
@@ -73,55 +73,6 @@ gym.register(
 )
 
 
-#######################################################
-# Register Deploy environments. VAE
-#######################################################
-# gym.register(
-#     id="Deploy-Tracking-Flat-G1-VAE-v0",
-#     entry_point="isaaclab.envs:ManagerBasedRLEnv",
-#     disable_env_checker=True,
-#     kwargs={
-#         "env_cfg_entry_point": flat_env_cfg.Deploy_G1FlatTrackingEnvCfg,
-#         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1Flat_VAE_PPORunnerCfg",
-#     },
-# )
-
-# gym.register(
-#     id="Deploy-MultiTracking-Flat-G1-VAE-v0",
-#     entry_point="isaaclab.envs:ManagerBasedRLEnv",
-#     disable_env_checker=True,
-#     kwargs={
-#         "env_cfg_entry_point": flat_env_cfg.Deploy_G1FlatMultiTrackingEnvCfg,
-#         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:MultiG1Flat_VAE_PPORunnerCfg",
-#     },
-# )
-
-
-#######################################################
-# Register Deploy environments. FSQVAE
-#######################################################
-
-# gym.register(
-#     id="Deploy-Tracking-Flat-G1-FSQVAE-v0",
-#     entry_point="isaaclab.envs:ManagerBasedRLEnv",
-#     disable_env_checker=True,
-#     kwargs={
-#         "env_cfg_entry_point": flat_env_cfg.Deploy_G1FlatTrackingEnvCfg,
-#         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1Flat_FSQVAE_PPORunnerCfg",
-#     },
-# )
-
-# gym.register(
-#     id="Deploy-MultiTracking-Flat-G1-FSQVAE-v0",
-#     entry_point="isaaclab.envs:ManagerBasedRLEnv",
-#     disable_env_checker=True,
-#     kwargs={
-#         "env_cfg_entry_point": flat_env_cfg.Deploy_G1FlatMultiTrackingEnvCfg,
-#         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:MultiG1Flat_FSQVAE_PPORunnerCfg",
-#     },
-# )
-
-
 #################################
 # SONIC
 #################################
@@ -164,5 +115,15 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": flat_env_cfg.SONIC_G1FlatMultiTrackingEnvCfg,
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_FSQVAE_PPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="SONIC-MultiTracking-Flat-G1-SMPLX-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": sonic_flat_env_cfg.SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_SMPLX_PPORunnerCfg",
     },
 )
