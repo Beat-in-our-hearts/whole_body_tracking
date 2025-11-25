@@ -217,7 +217,7 @@ class Motion_Dataset(Dataset):
         
         fps = int(data["fps"][0])
         length = motion["joint_pos"].shape[0]
-        duration = (length - 1) / fps
+        duration = length / fps
         
         return {
             "motion": motion,
@@ -250,7 +250,7 @@ class Motion_Dataset(Dataset):
                 "quantity": self.quantities[i],
                 "fps": fps,
                 "length": length,
-                "duration": (length - 1) / fps,
+                "duration": length / fps,
                 "dataset_source": self.dataset_sources[i],
             })
         
@@ -270,7 +270,7 @@ class Motion_Dataset(Dataset):
             data = np.load(self.npz_paths[i])
             fps = int(data["fps"][0])
             length = data["joint_pos"].shape[0]
-            duration = (length - 1) / fps
+            duration = length / fps
             
             total_frames += length
             total_duration += duration
