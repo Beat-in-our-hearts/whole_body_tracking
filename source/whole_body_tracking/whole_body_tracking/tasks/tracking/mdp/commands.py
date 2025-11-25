@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from collections.abc import Sequence
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, Any, Dict, List, Optional
 
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm, CommandTermCfg
@@ -27,6 +27,8 @@ from isaaclab.utils.math import (
 
 from whole_body_tracking.utils.motion_dataset import Motion_Dataset
 from whole_body_tracking.utils.motion_dataloader import Motion_Dataloader
+from whole_body_tracking.utils.unify_motion_dataset import Unify_Motion_Dataset
+from whole_body_tracking.utils.unify_motion_dataloader import Unify_Motion_Dataloader
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -900,6 +902,147 @@ class MultiMotionCommandCfg(CommandTermCfg):
     body_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/pose")
     body_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
 
+
+class SONIC_MultiMotionCommand(MultiMotionCommand):
+    """SONIC-specific multi-motion command supporting SMPL-X data access.
+    
+    Extends MultiMotionCommand to use Unify_Motion_Dataset and Unify_Motion_Dataloader,
+    enabling access to both robot and SMPL-X motion data for multi-modal motion tracking.
+    
+    Key differences from MultiMotionCommand:
+    - Uses Unify_Motion_Dataset instead of Motion_Dataset for paired data loading
+    - Uses Unify_Motion_Dataloader instead of Motion_Dataloader with dual-source buffers
+    - Provides smplx_pose_body property for accessing SMPL-X pose data
+    """
+    
+    cfg: SONIC_MultiMotionCommandCfg
+    
+    def __init__(self, cfg: SONIC_MultiMotionCommandCfg, env: ManagerBasedRLEnv):
+        """Initialize SONIC command with unified dataset support.
+        
+        Args:
+            cfg: SONIC_MultiMotionCommandCfg configuration
+            env: ManagerBasedRLEnv environment
+        """
+        # Call parent initialization first to set up robot and environment properties
+        super().__init__(cfg, env)
+        
+        # Replace dataset and dataloader with unified versions supporting SMPL-X
+        print(f"[SONIC_MultiMotionCommand] Loading unified dataset from robot: {cfg.robot_dataset}, SMPL-X: {cfg.smplx_dataset}")
+        
+        # Create unified dataset pairing robot and SMPL-X motions
+        self.dataset = Unify_Motion_Dataset(
+            robot_dataset=cfg.robot_dataset,
+            smplx_dataset=cfg.smplx_dataset,
+            robot_name=cfg.robot_name,
+        )
+        
+        # Create unified dataloader with dual-source motion buffers
+        self.dataloader = Unify_Motion_Dataloader(
+            dataset=self.dataset,
+            body_indexes=self.body_indexes,
+            device=self.device,
+        )
+        
+        # Reinitialize bin-related attributes with new dataloader
+        self.bin_size = int(1 / (env.cfg.decimation * env.cfg.sim.dt))
+        self.bin_count = int(self.dataloader.time_step_total // self.bin_size) + 1
+        self.bin_failed_count = torch.zeros(self.bin_count, dtype=torch.float, device=self.device)
+        self._current_bin_failed = torch.zeros(self.bin_count, dtype=torch.float, device=self.device)
+        
+        print(f"[SONIC_MultiMotionCommand] Initialization complete with SMPL-X data support:")
+        print(f"  - Loaded {self.dataloader.num_motions} paired motions")
+        print(f"  - Total frames: {self.dataloader.time_step_total}")
+        print(f"  - Total bins: {self.bin_count}")
+    
+    @property
+    def smplx_pose_body(self) -> torch.Tensor:
+        """Get SMPL-X body pose for current timesteps.
+        
+        Returns SMPL-X body pose data for all environments at their current global timesteps.
+        This provides access to the full-body SMPL-X pose representation.
+        
+        Returns:
+            Tensor[num_envs, pose_body_dim] containing SMPL-X body pose data where
+            pose_body_dim is typically 63 (21 joints * 3 values per joint) for SMPL-X.
+            
+        Example:
+            >>> pose_body = command.smplx_pose_body  # [num_envs, 63]
+        """
+        return self.dataloader.motion_buffer.smplx_pose_body[self.global_time_steps]
+
+
+@configclass
+class SONIC_MultiMotionCommandCfg(CommandTermCfg):
+    """Configuration for SONIC multi-motion command with SMPL-X support and global bins sampling.
+    
+    This configuration enables multi-modal motion tracking by pairing robot motions with
+    corresponding SMPL-X human motions for simultaneous tracking of both data sources.
+    
+    Attributes:
+        robot_dataset: Dict mapping dataset directories to split lists for robot NPZ files
+        smplx_dataset: List of SMPL-X dataset directories containing paired NPZ files
+        robot_name: Name of robot folder within dataset directories
+    """
+
+    class_type: type = SONIC_MultiMotionCommand
+
+    asset_name: str = MISSING
+    """Name of the robot asset in the scene."""
+
+    # Dataset configuration
+    robot_dataset: Dict[str, List[str]] = MISSING
+    """List of robot dataset directories containing NPZ motion files."""
+    
+    smplx_dataset: List[str] = MISSING
+    """List of SMPL-X dataset directories containing NPZ motion files."""
+    
+    robot_name: str = MISSING
+    """Robot name for dataset filtering."""
+
+    # Body configuration
+    anchor_body_name: str = MISSING
+    """Name of the anchor body (usually root or pelvis)."""
+    
+    body_names: list[str] = MISSING
+    """List of body names to track."""
+
+    # Initialization noise ranges
+    pose_range: dict[str, tuple[float, float]] = {}
+    """Pose noise ranges for x, y, z, roll, pitch, yaw."""
+    
+    velocity_range: dict[str, tuple[float, float]] = {}
+    """Velocity noise ranges for x, y, z, roll, pitch, yaw."""
+    
+    joint_position_range: tuple[float, float] = (-0.52, 0.52)
+    """Joint position noise range."""
+
+    # Adaptive sampling parameters
+    adaptive_kernel_size: int = 1
+    """Kernel size for convolution smoothing of bin probabilities."""
+    
+    adaptive_lambda: float = 0.8
+    """Exponential decay factor for kernel weights."""
+    
+    adaptive_uniform_ratio: float = 0.1
+    """Ratio of uniform sampling mixed with failure-based sampling."""
+    
+    adaptive_cap: int = 200
+    """Cap for bin failure counts to prevent extreme probabilities."""
+    
+    adaptive_alpha: float = 0.001
+    """EMA smoothing factor for bin failure counts."""
+
+    # Evaluation-specific parameters
+    eval_target_attempts: int = 128
+    """Number of evaluation attempts per motion (used by EvalMultiMotionCommand)."""
+
+    # Visualization
+    anchor_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/pose")
+    anchor_visualizer_cfg.markers["frame"].scale = (0.2, 0.2, 0.2)
+
+    body_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/pose")
+    body_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
 
 
 class EvalMultiMotionCommand(MultiMotionCommand):
