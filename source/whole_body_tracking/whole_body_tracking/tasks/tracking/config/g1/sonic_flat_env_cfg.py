@@ -13,6 +13,9 @@ from whole_body_tracking.tasks.tracking.sonic_multi_tracking_env_cfg import VELO
 # SONIC
 #######################################
 class SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX(SONIC_MultiTrackingEnvCfg):
+    
+    SONIC_FLAG: bool = True
+    
     def __post_init__(self):
         super().__post_init__()
 
