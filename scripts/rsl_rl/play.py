@@ -25,6 +25,7 @@ parser.add_argument("--disable_multi_motion", action="store_true", default=False
 parser.add_argument("--datasets", type=str, default=None, help="Comma separated list of datasets to use.")
 parser.add_argument("--splits", type=str, default=None, help="Splits name to use for datasets.")
 parser.add_argument("--wandb_run_path", type=str, default=None, help="Path to the wandb run to load the model from.")
+parser.add_argument("--wandb_alg_cfg", action="store_true", default=False, help="Load algorithm config from wandb run.")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -104,6 +105,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
         print(f"[INFO]: Loading model checkpoint from wandb: {run_path}/{file}")
         resume_path = f"./logs/rsl_rl/temp/{file}"
+        
+        if args_cli.wandb_alg_cfg:
+            # load agent config from wandb run
+            config_dict = wandb_run.config
+            # convert to dict
+            config_dict = dict(config_dict)
+            # update agent_cfg
+            config_dict["policy_cfg"]["init_noise_std"] = float(config_dict["policy_cfg"]["init_noise_std"])
+            agent_cfg.policy.from_dict(config_dict["policy_cfg"])
+            
+            # agent_cfg = RslRlOnPolicyRunnerCfg.from_dict(config_dict["alg_cfg"])
+            print("[INFO]: Loaded agent config from wandb run:")
+            print_dict(agent_cfg.to_dict(), nesting=4)
 
     else:
         # motion_file from log_root_path/params/env.yaml
