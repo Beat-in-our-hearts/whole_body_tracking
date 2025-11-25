@@ -85,6 +85,7 @@ class SMPLXFrameAligner:
     def save_smplx_data(self, smplx_data: Dict[str, np.ndarray], output_path: str) -> None:
         """
         Save SMPLX data as .npz file.
+        Flattens all temporal sequence data from (N, D1, D2, ...) to (N, D) format.
         
         Args:
             smplx_data: Dictionary of SMPLX parameters
@@ -92,7 +93,29 @@ class SMPLXFrameAligner:
         """
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        np.savez(output_path, **smplx_data)
+        
+        # Flatten temporal sequence data while preserving metadata
+        flattened_data = {}
+        for key, value in smplx_data.items():
+            if isinstance(value, np.ndarray):
+                # Temporal sequence data: flatten from (N, D1, D2, ...) to (N, D)
+                if value.ndim >= 2:
+                    # Get the number of frames (first dimension)
+                    num_frames = value.shape[0]
+                    # Reshape to (num_frames, -1)
+                    flattened_data[key] = value.reshape(num_frames, -1)
+                    if value.shape != flattened_data[key].shape:
+                        logger.debug(f"Flattened {key}: {value.shape} -> {flattened_data[key].shape}")
+                    else:
+                        flattened_data[key] = value
+                else:
+                    # Scalar or 1D data, keep as-is
+                    flattened_data[key] = value
+            else:
+                # Non-array data (scalars), keep as-is
+                flattened_data[key] = value
+        
+        np.savez(output_path, **flattened_data)
         logger.info(f"Saved processed data: {output_path}")
     
     def _get_num_frames(self, smplx_data: Dict[str, np.ndarray]) -> int:
