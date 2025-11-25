@@ -415,20 +415,8 @@ class MultiMotionCommand(CommandTerm):
         self.body_indexes = torch.tensor(
             self.robot.find_bodies(self.cfg.body_names, preserve_order=True)[0], dtype=torch.long, device=self.device
         )
-
-        # Initialize dataset and dataloader
-        print(f"[MultiMotionCommand] Loading dataset from: {cfg.dataset_dirs}")
-        self.dataset = Motion_Dataset(
-            dataset_dirs=cfg.dataset_dirs,
-            robot_name=cfg.robot_name,
-            splits=cfg.splits,
-        )
         
-        self.dataloader = Motion_Dataloader(
-            dataset=self.dataset,
-            body_indexes=self.body_indexes,
-            device=self.device,
-        )
+        self._init_datasets()
         
         # Environment state: which motion and timestep each env is at
         self.motion_ids = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
@@ -468,6 +456,21 @@ class MultiMotionCommand(CommandTerm):
         print(f"  - Loaded {self.dataloader.num_motions} motions")
         print(f"  - Total frames: {self.dataloader.time_step_total}")
         print(f"  - Total bins: {self.bin_count}")
+
+    def _init_datasets(self):
+        # Initialize dataset and dataloader
+        print(f"[MultiMotionCommand] Loading dataset from: {self.cfg.dataset_dirs}")
+        self.dataset = Motion_Dataset(
+            dataset_dirs=self.cfg.dataset_dirs,
+            robot_name=self.cfg.robot_name,
+            splits=self.cfg.splits,
+        )
+        
+        self.dataloader = Motion_Dataloader(
+            dataset=self.dataset,
+            body_indexes=self.body_indexes,
+            device=self.device,
+        )
 
     @property
     def command(self) -> torch.Tensor:
@@ -926,15 +929,16 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
         """
         # Call parent initialization first to set up robot and environment properties
         super().__init__(cfg, env)
-        
+    
+    def _init_datasets(self):
         # Replace dataset and dataloader with unified versions supporting SMPL-X
-        print(f"[SONIC_MultiMotionCommand] Loading unified dataset from robot: {cfg.robot_dataset}, SMPL-X: {cfg.smplx_dataset}")
+        print(f"[SONIC_MultiMotionCommand] Loading unified dataset from robot: {self.cfg.robot_dataset}, SMPL-X: {self.cfg.smplx_dataset}")
         
         # Create unified dataset pairing robot and SMPL-X motions
         self.dataset = Unify_Motion_Dataset(
-            robot_dataset=cfg.robot_dataset,
-            smplx_dataset=cfg.smplx_dataset,
-            robot_name=cfg.robot_name,
+            robot_dataset=self.cfg.robot_dataset,
+            smplx_dataset=self.cfg.smplx_dataset,
+            robot_name=self.cfg.robot_name,
         )
         
         # Create unified dataloader with dual-source motion buffers
@@ -944,17 +948,6 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
             device=self.device,
         )
         
-        # Reinitialize bin-related attributes with new dataloader
-        self.bin_size = int(1 / (env.cfg.decimation * env.cfg.sim.dt))
-        self.bin_count = int(self.dataloader.time_step_total // self.bin_size) + 1
-        self.bin_failed_count = torch.zeros(self.bin_count, dtype=torch.float, device=self.device)
-        self._current_bin_failed = torch.zeros(self.bin_count, dtype=torch.float, device=self.device)
-        
-        print(f"[SONIC_MultiMotionCommand] Initialization complete with SMPL-X data support:")
-        print(f"  - Loaded {self.dataloader.num_motions} paired motions")
-        print(f"  - Total frames: {self.dataloader.time_step_total}")
-        print(f"  - Total bins: {self.bin_count}")
-    
     @property
     def smplx_pose_body(self) -> torch.Tensor:
         """Get SMPL-X body pose for current timesteps.
