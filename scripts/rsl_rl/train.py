@@ -27,6 +27,7 @@ parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy 
 parser.add_argument("--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes.")
 parser.add_argument("--disable_multi_motion", action="store_true", default=False, help="Disable multi-motion training.")
 parser.add_argument("--motion_file", type=str, default=None, help="Path to the motion file to load.")
+parser.add_argument("--pretrain_vae_ckpt", type=str, default=None, help="Path to the pre-trained VAE checkpoint.")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -164,6 +165,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             device=agent_cfg.device,
         )
     
+    # load pre-trained VAE checkpoint if specified
+    if args_cli.pretrain_vae_ckpt is not None:
+        print(f"[INFO]: Loading pre-trained VAE checkpoint from: {args_cli.pretrain_vae_ckpt}")
+        cpu_vae_ckpt = torch.load(args_cli.pretrain_vae_ckpt, map_location='cpu')
+        # NOTE vae just part of the actor, use strict=False to ignore missing keys
+        runner.alg.policy.actor.load_state_dict(cpu_vae_ckpt, strict=False)
+        
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
     # save resume path before creating a new log_dir

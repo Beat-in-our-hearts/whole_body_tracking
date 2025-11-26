@@ -44,3 +44,4 @@ _build
 artifacts/
 datasets/
 tmp/
+checkpoints/

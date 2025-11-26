@@ -161,12 +161,12 @@ class SONIC_Multi_G1Flat_SMPLX_PPORunnerCfg(G1FlatPPORunnerCfg):
         # SONIC specific configs
         actor_sg_dim=580,
         actor_sh_dim=630, # human state dimension 63x10
-        fsqvae_latent_dim=64,
+        fsqvae_latent_dim=128,
         fsq_levels=[8,8,8,5,5,5],
-        num_codebooks=16,
-        robot_encoder_hidden_dims=[512, 256],
-        human_encoder_hidden_dims=[512, 256],
-        recover_decoder_hidden_dims=[256, 512],
+        num_codebooks=32,
+        robot_encoder_hidden_dims=[1024, 512, 256],
+        human_encoder_hidden_dims=[1024, 512, 256],
+        recover_decoder_hidden_dims=[256, 512, 1024],
     )
     algorithm = RslRl_SONIC_PpoAlgorithmCfg(
         value_loss_coef=1.0,
@@ -182,7 +182,7 @@ class SONIC_Multi_G1Flat_SMPLX_PPORunnerCfg(G1FlatPPORunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
         # specific to autoencoder ppo
-        reconstruction_loss_coef_sg=1e-1,
+        reconstruction_loss_coef_sg=1e-2,
         reconstruction_loss_coef_sh=1e-2,
         token_loss_coef=1e-2,
         cycle_loss_coef=1e-2,
