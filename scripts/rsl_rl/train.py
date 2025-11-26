@@ -170,7 +170,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(f"[INFO]: Loading pre-trained VAE checkpoint from: {args_cli.pretrain_vae_ckpt}")
         cpu_vae_ckpt = torch.load(args_cli.pretrain_vae_ckpt, map_location='cpu')
         # NOTE vae just part of the actor, use strict=False to ignore missing keys
-        runner.alg.policy.actor.load_state_dict(cpu_vae_ckpt, strict=False)
+        load_result = runner.alg.policy.actor.load_state_dict(cpu_vae_ckpt, strict=False)
+        print(f"[INFO]: VAE checkpoint load result: {load_result}")
         
     # write git state to logs
     runner.add_git_repo_to_log(__file__)

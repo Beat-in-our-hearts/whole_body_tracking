@@ -42,7 +42,7 @@ class SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX(SONIC_MultiTrackingEnvCfg):
             velocity_range=VELOCITY_RANGE,
             joint_position_range=(-0.1, 0.1),
             # Dataset configuration
-            robot_dataset={lafan1_dataset_path: ["walk_subset", ]},
+            robot_dataset={lafan1_dataset_path: ["train", ]},
             smplx_dataset=[smplx_dataset_path,],
             robot_name="g1",
         )

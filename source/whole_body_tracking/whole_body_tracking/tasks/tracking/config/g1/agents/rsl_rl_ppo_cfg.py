@@ -182,8 +182,8 @@ class SONIC_Multi_G1Flat_SMPLX_PPORunnerCfg(G1FlatPPORunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
         # specific to autoencoder ppo
-        reconstruction_loss_coef_sg=1e-2,
-        reconstruction_loss_coef_sh=1e-2,
-        token_loss_coef=1e-2,
-        cycle_loss_coef=1e-2,
+        reconstruction_loss_coef_sg=1e-1,
+        reconstruction_loss_coef_sh=1e-1,
+        token_loss_coef=1.0,
+        cycle_loss_coef=1.0,
     )
