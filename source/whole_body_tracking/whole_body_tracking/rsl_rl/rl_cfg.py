@@ -126,3 +126,6 @@ class RslRl_SONIC_PpoAlgorithmCfg(RslRlPpoAlgorithmCfg):
     
     cycle_loss_coef: float = MISSING
     """The coefficient for the cycle consistency loss."""
+    
+    pretrain_vae: bool = False
+    """Whether to pretrain the VAE before policy training."""

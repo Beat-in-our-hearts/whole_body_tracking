@@ -150,6 +150,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # create runner from rsl-rl
     sonic_flag = getattr(env_cfg, "SONIC_FLAG", False)
     if sonic_flag:
+        if args_cli.pretrain_vae_ckpt is not None:
+            agent_cfg.algorithm.pretrain_vae = True
+            print("="*50)
+            print(f"[INFO]: Enabled VAE pretraining in SONIC PPO algorithm config.")
+            print("="*50)
+            
         runner = SONICOnPolicyRunner(
             env, 
             agent_cfg.to_dict(), 
@@ -172,6 +178,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         # NOTE vae just part of the actor, use strict=False to ignore missing keys
         load_result = runner.alg.policy.actor.load_state_dict(cpu_vae_ckpt, strict=False)
         print(f"[INFO]: VAE checkpoint load result: {load_result}")
+        # TODO freeze VAE parameters, but `normalizer` has some problems when freezing
+        runner.alg.policy.actor.freeze_encoders_and_decoders()
+        print(f"[INFO]: Frozen VAE encoder and decoder parameters.")
         
     # write git state to logs
     runner.add_git_repo_to_log(__file__)

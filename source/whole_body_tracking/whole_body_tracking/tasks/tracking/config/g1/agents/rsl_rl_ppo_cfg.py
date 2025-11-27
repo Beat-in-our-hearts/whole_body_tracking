@@ -153,6 +153,7 @@ class SONIC_Multi_G1Flat_FSQVAE_PPORunnerCfg(SONIC_G1Flat_FSQVAE_PPORunnerCfg):
 class SONIC_Multi_G1Flat_SMPLX_PPORunnerCfg(G1FlatPPORunnerCfg):
     max_iterations = 50_000
     experiment_name = "sonic_multi_g1_flat_smplx"
+    empirical_normalization = False # disable empirical normalization for high-dim input
     policy = RslRl_SONIC_PpoPolicyCfg(
         init_noise_std=1.0,
         actor_hidden_dims=[512, 256, 128],
