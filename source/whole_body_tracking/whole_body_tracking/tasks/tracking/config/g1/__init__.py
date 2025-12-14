@@ -118,12 +118,25 @@ gym.register(
     },
 )
 
+##################################################
+# all exp settings
+# Register SONIC env with SMPLX observations
 gym.register(
-    id="SONIC-MultiTracking-Flat-G1-SMPLX-v0",
+    id="SONIC-MultiTracking-Flat-G1-VQVAE-Scratch-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": sonic_flat_env_cfg.SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX,
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_SMPLX_PPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_VQVAE_Scratch_PPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="SONIC-MultiTracking-Flat-G1-VQVAE-Finetune-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": sonic_flat_env_cfg.SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_VQVAE_Scratch_PPORunnerCfg",
     },
 )

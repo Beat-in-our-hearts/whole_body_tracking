@@ -10,7 +10,7 @@ from whole_body_tracking.tasks.tracking.mdp import SONIC_MultiMotionCommandCfg
 from whole_body_tracking.tasks.tracking.sonic_multi_tracking_env_cfg import VELOCITY_RANGE, ObservationsCfgV2
 
 #######################################
-# SONIC
+# SONIC Multi Tracking Env with SMPLX observations
 #######################################
 class SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX(SONIC_MultiTrackingEnvCfg):
     
@@ -42,7 +42,7 @@ class SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX(SONIC_MultiTrackingEnvCfg):
             velocity_range=VELOCITY_RANGE,
             joint_position_range=(-0.1, 0.1),
             # Dataset configuration
-            robot_dataset={lafan1_dataset_path: ["train", ]},
+            robot_dataset={lafan1_dataset_path: ["walk_subset", ]},
             smplx_dataset=[smplx_dataset_path,],
             robot_name="g1",
         )

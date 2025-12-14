@@ -98,6 +98,9 @@ class RslRl_SONIC_PpoPolicyCfg(RslRlPpoActorCriticCfg):
     
     num_codebooks: int = MISSING
     """The number of codebooks for FSQ quantization."""
+    
+    activate_signals: Literal["robot", "smplx"] = "robot"
+    """Which signals to activate: 'robot' or 'smplx'."""
 
     robot_encoder_hidden_dims: list[int] = MISSING
     """The hidden dimensions of the robot encoder network."""
@@ -129,3 +132,6 @@ class RslRl_SONIC_PpoAlgorithmCfg(RslRlPpoAlgorithmCfg):
     
     pretrain_vae: bool = False
     """Whether to pretrain the VAE before policy training."""
+    
+    finetune_human_encoder: bool = False
+    """Whether to finetune the human encoder."""
