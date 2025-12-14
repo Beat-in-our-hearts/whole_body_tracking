@@ -162,7 +162,7 @@ class SONIC_Multi_G1Flat_VQVAE_Scratch_PPORunnerCfg(G1FlatPPORunnerCfg):
         # SONIC specific configs
         actor_sg_dim=580,
         actor_sh_dim=630, # human state dimension 63x10
-        fsqvae_latent_dim=128,
+        fsqvae_latent_dim=64,
         fsq_levels=[8,8,8,5,5,5],
         num_codebooks=32,
         robot_encoder_hidden_dims=[1024, 512, 256],
