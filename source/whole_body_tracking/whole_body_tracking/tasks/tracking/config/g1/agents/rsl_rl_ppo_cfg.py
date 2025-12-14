@@ -7,6 +7,8 @@ from whole_body_tracking.rsl_rl import (
     RslRl_FSQVAE_PpoAlgorithmCfg,
     RslRl_SONIC_PpoPolicyCfg,
     RslRl_SONIC_PpoAlgorithmCfg,
+    RslRl_Projection_PPOPolicyCfg,
+    RslRl_Projection_PPOAlgorithmCfg,
 )
 
 
@@ -199,3 +201,50 @@ class SONIC_Multi_G1Flat_VQVAE_Finetune_PPORunnerCfg(SONIC_Multi_G1Flat_VQVAE_Sc
     def __post_init__(self):
         super().__post_init__()
         self.algorithm.finetune_human_encoder = True
+
+
+
+@configclass
+class SONIC_Multi_G1Flat_Projection_Scratch_PPORunnerCfg(G1FlatPPORunnerCfg):
+    max_iterations = 30_000
+    experiment_name = "sonic_multi_g1_flat_projection_scratch"
+    empirical_normalization = False # disable empirical normalization for high-dim input
+    policy = RslRl_Projection_PPOPolicyCfg(
+        init_noise_std=1.0,
+        actor_hidden_dims=[512, 256, 128],
+        critic_hidden_dims=[512, 256, 128],
+        activation="elu",
+        # Projection specific configs
+        actor_sg_dim=580,
+        actor_sh_dim=630, # human state dimension 63x10
+        projection_hidden_dims=64,
+        activate_signals="robot", # Use robot signals for zero-shot training
+        robot_projection_hidden_dims=[1024, 512, 256],
+        human_projection_hidden_dims=[1024, 512, 256],
+    )
+    algorithm = RslRl_Projection_PPOAlgorithmCfg(
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.005,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+        # specific to projection ppo
+        projection_alignment_coef=1.0,
+        finetune_human_projection=False, # not finetune in scratch training
+    )
+    
+@configclass
+class SONIC_Multi_G1Flat_Projection_Finetune_PPORunnerCfg(SONIC_Multi_G1Flat_Projection_Scratch_PPORunnerCfg):
+    max_iterations = 30_000
+    experiment_name = "sonic_multi_g1_flat_projection_finetune"
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.algorithm.finetune_human_projection = True

@@ -5,4 +5,6 @@ from .rl_cfg import (
     RslRl_FSQVAE_PpoAlgorithmCfg,
     RslRl_SONIC_PpoPolicyCfg,
     RslRl_SONIC_PpoAlgorithmCfg,
+    RslRl_Projection_PPOPolicyCfg,
+    RslRl_Projection_PPOAlgorithmCfg,
 )

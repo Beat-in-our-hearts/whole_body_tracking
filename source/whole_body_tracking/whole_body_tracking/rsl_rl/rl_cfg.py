@@ -135,3 +135,43 @@ class RslRl_SONIC_PpoAlgorithmCfg(RslRlPpoAlgorithmCfg):
     
     finetune_human_encoder: bool = False
     """Whether to finetune the human encoder."""
+
+
+@configclass
+class RslRl_Projection_PPOPolicyCfg(RslRlPpoActorCriticCfg):
+    """Configuration for the Projection_PPO policy."""
+
+    class_name: str = "ActorCriticProjection"
+    """The policy class name. Default is ActorCriticProjection."""
+    
+    actor_sg_dim: int = MISSING
+    """The state-goal dimension for the actor."""
+    
+    actor_sh_dim: int = MISSING
+    """The human state dimension for the actor."""
+    
+    projection_hidden_dims: int = 64
+    """The dimension of the shared projection space. Default is 64."""
+    
+    activate_signals: Literal["robot", "smplx"] = "robot"
+    """Which signals to activate: 'robot' or 'smplx'. Default is 'robot'."""
+
+    robot_projection_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the robot projection network."""
+    
+    human_projection_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the human projection network."""
+
+
+@configclass
+class RslRl_Projection_PPOAlgorithmCfg(RslRlPpoAlgorithmCfg):
+    """Configuration for the Projection_PPO algorithm."""
+
+    class_name: str = "Projection_PPO"
+    """The algorithm class name. Default is Projection_PPO."""
+    
+    projection_alignment_coef: float = 1.0
+    """The coefficient for the projection alignment loss (robot vs human). Default is 1.0."""
+    
+    finetune_human_projection: bool = False
+    """Whether to finetune only the human projection network. Default is False."""
