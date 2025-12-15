@@ -3,7 +3,7 @@ import os
 from dataclasses import MISSING
 
 from whole_body_tracking.robots.g1 import G1_ACTION_SCALE, G1_CYLINDER_CFG
-from whole_body_tracking.tasks import NPZ_DATASETS_DIR, SMPLX_DATASETS_DIR
+from whole_body_tracking.tasks import EXTEMDED_DATASETS_DIR
 
 from whole_body_tracking.tasks.tracking.sonic_multi_tracking_env_cfg import TrackingEnvCfg as SONIC_MultiTrackingEnvCfg
 from whole_body_tracking.tasks.tracking.mdp import SONIC_MultiMotionCommandCfg
@@ -24,8 +24,8 @@ class SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX(SONIC_MultiTrackingEnvCfg):
         # support smplx observations
         self.observations = ObservationsCfgV2()
         
-        lafan1_dataset_path = os.path.join(NPZ_DATASETS_DIR, "LAFAN1_Retargeting_Dataset")
-        smplx_dataset_path = os.path.join(SMPLX_DATASETS_DIR, "lafan1_smplx_datasets")
+        # Dataset paths (must be pre-processed by extend_datasets.py to include SMPL-X extended keys)
+        extended_dataset_path = os.path.join(EXTEMDED_DATASETS_DIR, "lafan1_dataset")
         
         self.commands.motion = SONIC_MultiMotionCommandCfg(
             asset_name="robot",
@@ -41,10 +41,10 @@ class SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX(SONIC_MultiTrackingEnvCfg):
             },
             velocity_range=VELOCITY_RANGE,
             joint_position_range=(-0.1, 0.1),
-            # Dataset configuration
-            robot_dataset={lafan1_dataset_path: ["walk_subset", ]},
-            smplx_dataset=[smplx_dataset_path,],
+            # Dataset configuration (unified API with extended keys from extend_datasets.py)
+            dataset_dirs=[extended_dataset_path],
             robot_name="g1",
+            splits=["walk_subset"],
         )
 
         self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")

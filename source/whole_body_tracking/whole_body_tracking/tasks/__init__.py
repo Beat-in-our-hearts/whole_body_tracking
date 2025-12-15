@@ -7,7 +7,7 @@ from isaaclab_tasks.utils import import_packages
 DATASETS_DIR: str = str(Path(__file__).parent.parent.parent.parent.parent / "datasets" / "npz_datasets")
 NPZ_DATASETS_DIR: str = DATASETS_DIR
 SMPLX_DATASETS_DIR: str = str(Path(__file__).parent.parent.parent.parent.parent / "datasets" / "smplx_datasets")
-
+EXTEMDED_DATASETS_DIR: str = str(Path(__file__).parent.parent.parent.parent.parent / "datasets" / "extended_datasets")
 
 ##
 # Register Gym environments.

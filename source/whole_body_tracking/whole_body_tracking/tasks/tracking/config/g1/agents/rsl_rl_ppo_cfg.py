@@ -163,7 +163,7 @@ class SONIC_Multi_G1Flat_VQVAE_Scratch_PPORunnerCfg(G1FlatPPORunnerCfg):
         activation="elu",
         # SONIC specific configs
         actor_sg_dim=580,
-        actor_sh_dim=630, # human state dimension 63x10
+        actor_sh_dim=1260, # human state dimension 126x10
         fsqvae_latent_dim=64,
         fsq_levels=[8,8,8,5,5,5],
         num_codebooks=32,
@@ -216,7 +216,7 @@ class SONIC_Multi_G1Flat_Projection_Scratch_PPORunnerCfg(G1FlatPPORunnerCfg):
         activation="elu",
         # Projection specific configs
         actor_sg_dim=580,
-        actor_sh_dim=630, # human state dimension 63x10
+        actor_sh_dim=1260, # human state dimension 126x10
         projection_hidden_dims=64,
         activate_signals="robot", # Use robot signals for zero-shot training
         robot_projection_hidden_dims=[1024, 512, 256],

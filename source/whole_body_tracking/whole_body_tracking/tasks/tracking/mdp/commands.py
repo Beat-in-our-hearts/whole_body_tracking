@@ -931,17 +931,22 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
         super().__init__(cfg, env)
     
     def _init_datasets(self):
-        # Replace dataset and dataloader with unified versions supporting SMPL-X
-        print(f"[SONIC_MultiMotionCommand] Loading unified dataset from robot: {self.cfg.robot_dataset}, SMPL-X: {self.cfg.smplx_dataset}")
+        """Initialize unified dataset and dataloader for SMPL-X support.
         
-        # Create unified dataset pairing robot and SMPL-X motions
+        Uses Unify_Motion_Dataset which extends Motion_Dataset to load
+        extended NPZ files (already processed by extend_datasets.py) containing
+        SMPL-X pose body data along with standard robot motion data.
+        """
+        print(f"[SONIC_MultiMotionCommand] Loading unified dataset from: {self.cfg.dataset_dirs}")
+        
+        # Create unified dataset with extended keys (SMPL-X data)
         self.dataset = Unify_Motion_Dataset(
-            robot_dataset=self.cfg.robot_dataset,
-            smplx_dataset=self.cfg.smplx_dataset,
+            dataset_dirs=self.cfg.dataset_dirs,
             robot_name=self.cfg.robot_name,
+            splits=self.cfg.splits,
         )
         
-        # Create unified dataloader with dual-source motion buffers
+        # Create unified dataloader with extended motion buffer
         self.dataloader = Unify_Motion_Dataloader(
             dataset=self.dataset,
             body_indexes=self.body_indexes,
@@ -953,16 +958,48 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
         """Get SMPL-X body pose for current timesteps.
         
         Returns SMPL-X body pose data for all environments at their current global timesteps.
-        This provides access to the full-body SMPL-X pose representation.
+        Data is pre-flattened from (N, 21, 6) to (N, 126) in dataset layer.
         
         Returns:
-            Tensor[num_envs, pose_body_dim] containing SMPL-X body pose data where
-            pose_body_dim is typically 63 (21 joints * 3 values per joint) for SMPL-X.
+            Tensor[num_envs, 126] containing flattened SMPL-X body pose data where
+            each joint is represented as 6D rotation (21 joints * 6 values per joint).
             
         Example:
-            >>> pose_body = command.smplx_pose_body  # [num_envs, 63]
+            >>> pose_body = command.smplx_pose_body  # [num_envs, 126]
         """
         return self.dataloader.motion_buffer.smplx_pose_body[self.global_time_steps]
+    
+    @property
+    def robot_keypoints_trans(self) -> torch.Tensor:
+        """Get robot keypoints translation for current timesteps.
+        
+        Returns robot keypoints SE3 translation data for all environments at their current global timesteps.
+        Data is pre-flattened from (N, 5, 3) to (N, 15) in dataset layer.
+        
+        Returns:
+            Tensor[num_envs, 15] containing flattened robot keypoints translation data where
+            each of 5 keypoints has 3 translation values (5 keypoints * 3 values per keypoint).
+            
+        Example:
+            >>> keypoints_trans = command.robot_keypoints_trans  # [num_envs, 15]
+        """
+        return self.dataloader.motion_buffer.robot_keypoints_trans[self.global_time_steps]
+    
+    @property
+    def robot_keypoints_rot(self) -> torch.Tensor:
+        """Get robot keypoints rotation for current timesteps.
+        
+        Returns robot keypoints SE3 rotation data for all environments at their current global timesteps.
+        Data is pre-flattened from (N, 5, 6) to (N, 30) in dataset layer as 6D rotations.
+        
+        Returns:
+            Tensor[num_envs, 30] containing flattened robot keypoints rotation data where
+            each of 5 keypoints is represented as 6D rotation (5 keypoints * 6 values per keypoint).
+            
+        Example:
+            >>> keypoints_rot = command.robot_keypoints_rot  # [num_envs, 30]
+        """
+        return self.dataloader.motion_buffer.robot_keypoints_rot[self.global_time_steps]
 
     def motion_smplx_pose_body(self, interval: int, frames: int):
         """Get future SMPL-X pose body data from multiple motions.
@@ -997,78 +1034,79 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
         
         # Index into motion_buffer using global timesteps (abstracted away motion_id/time_steps)
         return self.dataloader.motion_buffer.smplx_pose_body[self.future_global_time_steps]
+    
+    def motion_robot_keypoints_trans(self, interval: int, frames: int):
+        """Get future robot keypoints translation data from multiple motions.
+        
+        This method computes `frames=M` future robot keypoints translation states where each frame is 
+        separated by `interval=T` timesteps. It handles multi-motion buffer indexing where 
+        different environments may be at different motions.
+        
+        Args:
+            interval: Number of timesteps between sampled frames (stride/interval).
+            frames: Number of future frames to sample (sequence length).
+        
+        Returns:
+            Tensor of shape (num_envs, frames, keypoints_trans_dim) containing concatenated
+            future robot keypoints translation data across all environments and motions.
+            
+        Shape breakdown:
+            - global_time_steps: [num_envs]
+            - offsets: [frames]
+            - future_global_time_steps: [num_envs, frames] (broadcasting)
+            - robot_keypoints_trans: [total_timesteps, keypoints_trans_dim]
+            - output: [num_envs, frames, keypoints_trans_dim]
+        """
+        # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
+        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
+        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
+        
+        # Clamp to max valid global timestep for each motion
+        # Each environment may be at a different motion, so we need per-motion clamping
+        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
+        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
+        
+        # Index into motion_buffer using global timesteps (abstracted away motion_id/time_steps)
+        return self.dataloader.motion_buffer.robot_keypoints_trans[self.future_global_time_steps]
+    
+    def motion_robot_keypoints_rot(self, interval: int, frames: int):
+        """Get future robot keypoints rotation data from multiple motions.
+        
+        This method computes `frames=M` future robot keypoints rotation states where each frame is 
+        separated by `interval=T` timesteps. It handles multi-motion buffer indexing where 
+        different environments may be at different motions.
+        
+        Args:
+            interval: Number of timesteps between sampled frames (stride/interval).
+            frames: Number of future frames to sample (sequence length).
+        
+        Returns:
+            Tensor of shape (num_envs, frames, keypoints_rot_dim) containing concatenated
+            future robot keypoints rotation data across all environments and motions.
+            
+        Shape breakdown:
+            - global_time_steps: [num_envs]
+            - offsets: [frames]
+            - future_global_time_steps: [num_envs, frames] (broadcasting)
+            - robot_keypoints_rot: [total_timesteps, keypoints_rot_dim]
+            - output: [num_envs, frames, keypoints_rot_dim]
+        """
+        # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
+        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
+        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
+        
+        # Clamp to max valid global timestep for each motion
+        # Each environment may be at a different motion, so we need per-motion clamping
+        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
+        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
+        
+        # Index into motion_buffer using global timesteps (abstracted away motion_id/time_steps)
+        return self.dataloader.motion_buffer.robot_keypoints_rot[self.future_global_time_steps]
 
 @configclass
-class SONIC_MultiMotionCommandCfg(CommandTermCfg):
-    """Configuration for SONIC multi-motion command with SMPL-X support and global bins sampling.
-    
-    This configuration enables multi-modal motion tracking by pairing robot motions with
-    corresponding SMPL-X human motions for simultaneous tracking of both data sources.
-    
-    Attributes:
-        robot_dataset: Dict mapping dataset directories to split lists for robot NPZ files
-        smplx_dataset: List of SMPL-X dataset directories containing paired NPZ files
-        robot_name: Name of robot folder within dataset directories
-    """
-
+class SONIC_MultiMotionCommandCfg(MultiMotionCommandCfg):
+    """Configuration for SONIC multi-motion command with SMPL-X support."""
     class_type: type = SONIC_MultiMotionCommand
-
-    asset_name: str = MISSING
-    """Name of the robot asset in the scene."""
-
-    # Dataset configuration
-    robot_dataset: Dict[str, List[str]] = MISSING
-    """List of robot dataset directories containing NPZ motion files."""
-    
-    smplx_dataset: List[str] = MISSING
-    """List of SMPL-X dataset directories containing NPZ motion files."""
-    
-    robot_name: str = MISSING
-    """Robot name for dataset filtering."""
-
-    # Body configuration
-    anchor_body_name: str = MISSING
-    """Name of the anchor body (usually root or pelvis)."""
-    
-    body_names: list[str] = MISSING
-    """List of body names to track."""
-
-    # Initialization noise ranges
-    pose_range: dict[str, tuple[float, float]] = {}
-    """Pose noise ranges for x, y, z, roll, pitch, yaw."""
-    
-    velocity_range: dict[str, tuple[float, float]] = {}
-    """Velocity noise ranges for x, y, z, roll, pitch, yaw."""
-    
-    joint_position_range: tuple[float, float] = (-0.52, 0.52)
-    """Joint position noise range."""
-
-    # Adaptive sampling parameters
-    adaptive_kernel_size: int = 1
-    """Kernel size for convolution smoothing of bin probabilities."""
-    
-    adaptive_lambda: float = 0.8
-    """Exponential decay factor for kernel weights."""
-    
-    adaptive_uniform_ratio: float = 0.1
-    """Ratio of uniform sampling mixed with failure-based sampling."""
-    
-    adaptive_cap: int = 200
-    """Cap for bin failure counts to prevent extreme probabilities."""
-    
-    adaptive_alpha: float = 0.001
-    """EMA smoothing factor for bin failure counts."""
-
-    # Evaluation-specific parameters
-    eval_target_attempts: int = 128
-    """Number of evaluation attempts per motion (used by EvalMultiMotionCommand)."""
-
-    # Visualization
-    anchor_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/pose")
-    anchor_visualizer_cfg.markers["frame"].scale = (0.2, 0.2, 0.2)
-
-    body_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/pose")
-    body_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
 
 
 class EvalMultiMotionCommand(MultiMotionCommand):
