@@ -1103,6 +1103,46 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
         # Index into motion_buffer using global timesteps (abstracted away motion_id/time_steps)
         return self.dataloader.motion_buffer.robot_keypoints_rot[self.future_global_time_steps]
 
+
+    def motion_robot_keypoints(self, interval: int, frames: int):
+        """Get future robot keypoints SE3 data from multiple motions.
+        
+        This method computes `frames=M` future robot keypoints SE3 states where each frame is 
+        separated by `interval=T` timesteps. It handles multi-motion buffer indexing where 
+        different environments may be at different motions.
+        
+        Args:
+            interval: Number of timesteps between sampled frames (stride/interval).
+            frames: Number of future frames to sample (sequence length).
+        
+        Returns:
+            Tensor of shape (num_envs, frames, keypoints_dim) containing concatenated
+            future robot keypoints SE3 data across all environments and motions.
+            
+        Shape breakdown:
+            - global_time_steps: [num_envs]
+            - offsets: [frames]
+            - future_global_time_steps: [num_envs, frames] (broadcasting)
+            - robot_keypoints_trans: [total_timesteps, keypoints_trans_dim]
+            - robot_keypoints_rot: [total_timesteps, keypoints_rot_dim]
+            - output: [num_envs, frames, keypoints_dim]
+        """
+        # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
+        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
+        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
+        
+        # Clamp to max valid global timestep for each motion
+        # Each environment may be at a different motion, so we need per-motion clamping
+        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
+        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
+        
+        # Index into motion_buffer using global timesteps (abstracted away motion_id/time_steps)
+        keypoints = torch.cat([
+            self.dataloader.motion_buffer.robot_keypoints_trans[self.future_global_time_steps],
+            self.dataloader.motion_buffer.robot_keypoints_rot[self.future_global_time_steps]
+        ], dim=-1)
+        return keypoints
+        
 @configclass
 class SONIC_MultiMotionCommandCfg(MultiMotionCommandCfg):
     """Configuration for SONIC multi-motion command with SMPL-X support."""
