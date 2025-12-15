@@ -199,6 +199,10 @@ class ObservationsCfgV2:
                           params={"command_name": "motion", 
                                   "interval": 5, # 0.1s / 0.02s = 5
                                   "frames": 10,})
+        smplx_command = ObsTerm(func=mdp.motion_smplx_pose_body,
+                        params={"command_name": "motion",
+                                "interval": 5,
+                                "frames": 10,})
         
         smplx_command = ObsTerm(func=mdp.motion_smplx_pose_body,
                         params={"command_name": "motion",
