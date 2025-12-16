@@ -68,38 +68,6 @@ class MultiG1FlatPPORunnerCfg(G1FlatPPORunnerCfg):
 class SONIC_G1FlatPPORunnerCfg(G1FlatPPORunnerCfg):
     max_iterations = 15000
     experiment_name = "sonic_g1_flat"
-    
-@configclass
-class SONIC_G1Flat_VAE_PPORunnerCfg(SONIC_G1FlatPPORunnerCfg):
-    max_iterations = 15000
-    experiment_name = "sonic_g1_flat_vae"
-    policy = RslRl_VAE_PPOPolicyCfg(
-        init_noise_std=1.0,
-        actor_hidden_dims=[512, 256, 128],
-        critic_hidden_dims=[512, 256, 128],
-        activation="elu",
-        # VAE specific configs
-        actor_sg_dim=580,
-        vae_latent_dim=64,
-        robot_encoder_hidden_dims=[512, 256],
-        recover_decoder_hidden_dims=[256, 512],
-    )
-    algorithm = RslRl_VAE_PPOAlgorithmCfg(
-        value_loss_coef=1.0,
-        use_clipped_value_loss=True,
-        clip_param=0.2,
-        entropy_coef=0.005,
-        num_learning_epochs=5,
-        num_mini_batches=4,
-        learning_rate=1.0e-3,
-        schedule="adaptive",
-        gamma=0.99,
-        lam=0.95,
-        desired_kl=0.01,
-        max_grad_norm=1.0,
-        # specific to autoencoder ppo
-        reconstruction_loss_coef=1e-2,
-    )
 
     
 @configclass
@@ -135,12 +103,7 @@ class SONIC_G1Flat_FSQVAE_PPORunnerCfg(SONIC_G1FlatPPORunnerCfg):
         # specific to autoencoder ppo
         reconstruction_loss_coef=1e-2,
     )
-    
-# VAE Multi Tracking Env Runner Config
-@configclass
-class SONIC_Multi_G1Flat_VAE_PPORunnerCfg(SONIC_G1Flat_VAE_PPORunnerCfg):
-    max_iterations = 50000
-    experiment_name = "sonic_multi_g1_flat_vae"
+
     
 # FSQVAE Multi Tracking Env Runner Config
 @configclass
@@ -165,6 +128,7 @@ class SONIC_Multi_G1Flat_VQVAE_Scratch_PPORunnerCfg(G1FlatPPORunnerCfg):
         actor_sg_dim=580,
         actor_sh_dim=1260, # human state dimension 126x10
         fsqvae_latent_dim=64,
+        activate_signals="robot", # Use robot signals for zero-shot training
         fsq_levels=[8,8,8,5,5,5],
         num_codebooks=32,
         robot_encoder_hidden_dims=[1024, 512, 256],
@@ -201,6 +165,7 @@ class SONIC_Multi_G1Flat_VQVAE_Finetune_PPORunnerCfg(SONIC_Multi_G1Flat_VQVAE_Sc
     def __post_init__(self):
         super().__post_init__()
         self.algorithm.finetune_human_encoder = True
+        self.policy.activate_signals = "smplx" # Use smplx signals for finetune training
 
 
 
@@ -248,3 +213,55 @@ class SONIC_Multi_G1Flat_Projection_Finetune_PPORunnerCfg(SONIC_Multi_G1Flat_Pro
     def __post_init__(self):
         super().__post_init__()
         self.algorithm.finetune_human_projection = True
+        self.policy.activate_signals = "smplx" # Use smplx signals for finetune training
+        
+        
+@configclass
+class SONIC_Multi_G1Flat_VAE_Scratch_PPORunnerCfg(G1FlatPPORunnerCfg):
+    max_iterations = 30_000
+    experiment_name = "sonic_multi_g1_flat_vae_scratch"
+    empirical_normalization = False # disable empirical normalization for high-dim input
+    policy = RslRl_VAE_PPOPolicyCfg(
+        init_noise_std=1.0,
+        actor_hidden_dims=[512, 256, 128],
+        critic_hidden_dims=[512, 256, 128],
+        activation="elu",
+        # VAE specific configs
+        actor_sg_dim=580,
+        actor_sh_dim=1260, # human state dimension 126x10
+        vae_latent_dim=64,
+        activate_signals="robot", # Use robot signals for zero-shot training
+        robot_encoder_hidden_dims=[1024, 512, 256],
+        human_encoder_hidden_dims=[1024, 512, 256],
+        recover_decoder_hidden_dims=[256, 512, 1024],
+    )
+    algorithm = RslRl_VAE_PPOAlgorithmCfg(
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.005,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+        # specific to VAE-PPO
+        reconstruction_loss_coef_sg=1e-1,
+        reconstruction_loss_coef_sh=1e-1,
+        gaussian_alignment_loss_coef=1.0,
+        kl_loss_coef=1e-3,
+        finetune_human_encoder=False, # not finetune in scratch training
+    )
+    
+@configclass 
+class SONIC_Multi_G1Flat_VAE_Finetune_PPORunnerCfg(SONIC_Multi_G1Flat_VAE_Scratch_PPORunnerCfg):
+    max_iterations = 30_000
+    experiment_name = "sonic_multi_g1_flat_vae_finetune"
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.algorithm.finetune_human_encoder = True
+        self.policy.activate_signals = "smplx" # Use smplx signals for finetune training        
