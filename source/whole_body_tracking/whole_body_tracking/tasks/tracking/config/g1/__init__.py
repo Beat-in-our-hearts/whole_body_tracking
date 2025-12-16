@@ -141,6 +141,15 @@ gym.register(
     },
 )
 
+gym.register(
+    id="SONIC-MultiTracking-Flat-G1-VQVAE-SMPLX-Scratch-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": sonic_flat_env_cfg.SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_VQVAE_Scratch_SMPLX_PPORunnerCfg",
+    },
+)
 
 gym.register(
     id="SONIC-MultiTracking-Flat-G1-Projection-Scratch-v0",
@@ -163,6 +172,16 @@ gym.register(
 )
 
 gym.register(
+    id="SONIC-MultiTracking-Flat-G1-Projection-SMPLX-Scratch-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": sonic_flat_env_cfg.SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_Projection_Scratch_SMPLX_PPORunnerCfg",
+    },
+)
+
+gym.register(
     id="SONIC-MultiTracking-Flat-G1-VAE-Scratch-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
@@ -179,5 +198,15 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": sonic_flat_env_cfg.SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX,
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_VAE_Finetune_PPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="SONIC-MultiTracking-Flat-G1-VAE-SMPLX-Scratch-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": sonic_flat_env_cfg.SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_VAE_Scratch_SMPLX_PPORunnerCfg",
     },
 )

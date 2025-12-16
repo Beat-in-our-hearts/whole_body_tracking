@@ -167,7 +167,15 @@ class SONIC_Multi_G1Flat_VQVAE_Finetune_PPORunnerCfg(SONIC_Multi_G1Flat_VQVAE_Sc
         self.algorithm.finetune_human_encoder = True
         self.policy.activate_signals = "smplx" # Use smplx signals for finetune training
 
-
+@configclass
+class SONIC_Multi_G1Flat_VQVAE_Scratch_SMPLX_PPORunnerCfg(SONIC_Multi_G1Flat_VQVAE_Scratch_PPORunnerCfg):
+    max_iterations = 30_000
+    experiment_name = "sonic_multi_g1_flat_vqvae_scratch_smplx"
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.algorithm.finetune_human_encoder = False # train all networks from scratch
+        self.policy.activate_signals = "smplx" # Use smplx signals for finetune training
 
 @configclass
 class SONIC_Multi_G1Flat_Projection_Scratch_PPORunnerCfg(G1FlatPPORunnerCfg):
@@ -215,6 +223,16 @@ class SONIC_Multi_G1Flat_Projection_Finetune_PPORunnerCfg(SONIC_Multi_G1Flat_Pro
         self.algorithm.finetune_human_projection = True
         self.policy.activate_signals = "smplx" # Use smplx signals for finetune training
         
+        
+@configclass
+class SONIC_Multi_G1Flat_Projection_Scratch_SMPLX_PPORunnerCfg(SONIC_Multi_G1Flat_Projection_Scratch_PPORunnerCfg):
+    max_iterations = 30_000
+    experiment_name = "sonic_multi_g1_flat_projection_scratch_smplx"
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.algorithm.finetune_human_projection = False # train all networks from scratch
+        self.policy.activate_signals = "smplx" # Use smplx signals for finetune training
         
 @configclass
 class SONIC_Multi_G1Flat_VAE_Scratch_PPORunnerCfg(G1FlatPPORunnerCfg):
@@ -265,3 +283,14 @@ class SONIC_Multi_G1Flat_VAE_Finetune_PPORunnerCfg(SONIC_Multi_G1Flat_VAE_Scratc
         super().__post_init__()
         self.algorithm.finetune_human_encoder = True
         self.policy.activate_signals = "smplx" # Use smplx signals for finetune training        
+        
+        
+@configclass
+class SONIC_Multi_G1Flat_VAE_Scratch_SMPLX_PPORunnerCfg(SONIC_Multi_G1Flat_VAE_Scratch_PPORunnerCfg):
+    max_iterations = 30_000
+    experiment_name = "sonic_multi_g1_flat_vae_scratch_smplx"
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.algorithm.finetune_human_encoder = False # train all networks from scratch
+        self.policy.activate_signals = "smplx" # Use smplx signals for finetune training
