@@ -197,3 +197,61 @@ class RslRl_VAE_PPOAlgorithmCfg(RslRlPpoAlgorithmCfg):
     
     finetune_human_encoder: bool = False
     """Whether to finetune only the human encoder. Default is False."""
+
+
+@configclass
+class RslRl_Dual_AE_PPOPolicyCfg(RslRlPpoActorCriticCfg):
+    """Configuration for the Dual_AE_PPO policy."""
+
+    class_name: str = "ActorCritic_Dual_AE"
+    """The policy class name. Default is ActorCritic_Dual_AE."""
+    
+    actor_sg_dim: int = MISSING
+    """The state-goal dimension for the actor."""
+    
+    actor_sh_dim: int = MISSING
+    """The human state dimension for the actor."""
+
+    latent_dim: int = MISSING
+    """The latent dimension for the Dual Autoencoder."""
+    
+    activate_signals: Literal["robot", "smplx"] = "robot"
+    """Which signals to activate: 'robot' or 'smplx'. Default is 'robot'."""
+
+    robot_encoder_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the robot encoder network."""
+    
+    human_encoder_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the human encoder network."""
+
+    robot_decoder_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the robot decoder network."""
+    
+    human_decoder_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the human decoder network."""
+
+
+@configclass
+class RslRl_Dual_AE_PPOAlgorithmCfg(RslRlPpoAlgorithmCfg):
+    """Configuration for the Dual_AE_PPO algorithm."""
+
+    class_name: str = "Dual_AE_PPO"
+    """The algorithm class name. Default is Dual_AE_PPO."""
+    
+    reconstruction_loss_coef_sg: float = MISSING
+    """The coefficient for the robot goal state reconstruction loss."""
+    
+    reconstruction_loss_coef_sh: float = MISSING
+    """The coefficient for the human state reconstruction loss."""
+    
+    alignment_loss_coef: float = MISSING
+    """The coefficient for the latent space alignment loss (MSE)."""
+    
+    consistency_loss_coef: float = MISSING
+    """The coefficient for the cross-modal consistency loss. Default is 0.0."""
+    
+    finetune_human_encoder: bool = False
+    """Whether to finetune the human encoder. Default is False."""
+    
+    finetune_robot_encoder: bool = False
+    """Whether to finetune the robot encoder. Default is False."""

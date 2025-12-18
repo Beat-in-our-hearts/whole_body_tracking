@@ -7,4 +7,6 @@ from .rl_cfg import (
     RslRl_SONIC_PpoAlgorithmCfg,
     RslRl_Projection_PPOPolicyCfg,
     RslRl_Projection_PPOAlgorithmCfg,
+    RslRl_Dual_AE_PPOPolicyCfg,
+    RslRl_Dual_AE_PPOAlgorithmCfg,
 )
