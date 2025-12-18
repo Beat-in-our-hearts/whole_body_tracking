@@ -267,9 +267,9 @@ class SONIC_Multi_G1Flat_VAE_Scratch_PPORunnerCfg(G1FlatPPORunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
         # specific to VAE-PPO
-        reconstruction_loss_coef_sg=1e-1,
+        reconstruction_loss_coef_sg=1.0,
         reconstruction_loss_coef_sh=1e-1,
-        gaussian_alignment_loss_coef=1.0,
+        gaussian_alignment_loss_coef=1e-1,
         kl_loss_coef=1e-3,
         finetune_human_encoder=False, # not finetune in scratch training
     )
