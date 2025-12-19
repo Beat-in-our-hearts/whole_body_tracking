@@ -228,10 +228,18 @@ class ObservationsCfgV3:
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
-        command = ObsTerm(func=mdp.motion_triple_ae_cmd,
-                          params={"command_name": "motion",
+        command = ObsTerm(func=mdp.motion_robot_joint_pos, 
+                          params={"command_name": "motion", 
                                   "interval": 2,
                                   "frames": 10,})
+        smplx_command = ObsTerm(func=mdp.motion_smplx_pose_body,
+                                params={"command_name": "motion",
+                                        "interval": 2,
+                                        "frames": 10,})
+        keypoints_command = ObsTerm(func=mdp.motion_keypoints_se3,
+                                params={"command_name": "motion",
+                                        "interval": 2,
+                                        "frames": 10,})
         
         motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05))
         
@@ -247,10 +255,18 @@ class ObservationsCfgV3:
 
     @configclass
     class PrivilegedCfg(ObsGroup):
-        command = ObsTerm(func=mdp.motion_triple_ae_cmd,
-                          params={"command_name": "motion",
+        command = ObsTerm(func=mdp.motion_robot_joint_pos, 
+                          params={"command_name": "motion", 
                                   "interval": 2,
                                   "frames": 10,})
+        smplx_command = ObsTerm(func=mdp.motion_smplx_pose_body,
+                                params={"command_name": "motion",
+                                        "interval": 2,
+                                        "frames": 10,})
+        keypoints_command = ObsTerm(func=mdp.motion_keypoints_se3,
+                                params={"command_name": "motion",
+                                        "interval": 2,
+                                        "frames": 10,})
         
         motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
         motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})

@@ -253,80 +253,6 @@ class _OnnxMultiMotionPolicyExporter(_OnnxPolicyExporter):
                 dynamic_axes={},
             )
 
-# class _OnnxSonicPolicyExporter(_OnnxPolicyExporter):
-#     """SONIC Policy Exporter - Exports combined robot and human command policy.
-    
-#     This exporter exports the full Actor_SONIC policy that accepts both robot state goals
-#     and human state goals. Always exports with separate inputs for each observation term.
-#     """
-#     def __init__(self, actor_critic, env=None, normalizer=None, verbose=False):
-#         super().__init__(actor_critic, normalizer, verbose)
-        
-#         # Extract Actor_SONIC specific dimensions
-#         self.actor_sg_dim = actor_critic.actor.actor_sg_dim
-#         self.actor_sh_dim = actor_critic.actor.actor_sh_dim
-#         self.num_actor_obs = actor_critic.actor.num_actor_obs
-#         self.num_actions = actor_critic.actor.num_actions
-        
-#         # Extract observation manager info
-#         self.observation_names = env.observation_manager.active_terms["policy"]
-#         group_obs_term_dim = env.observation_manager._group_obs_term_dim["policy"]
-#         self.observation_dims = [dims[-1] for dims in group_obs_term_dim]
-        
-#         self.observation_history_lengths: list[int] = []
-#         if env.observation_manager.cfg.policy.history_length is not None:
-#             self.observation_history_lengths = [env.observation_manager.cfg.policy.history_length] * len(self.observation_names)
-#         else:
-#             for name in self.observation_names:
-#                 term_cfg = env.observation_manager.cfg.policy.to_dict()[name]
-#                 history_length = term_cfg["history_length"]
-#                 self.observation_history_lengths.append(1 if history_length == 0 else history_length)
-
-#     def forward(self, *args):
-#         """Forward pass using the full Actor_SONIC forward method.
-        
-#         Args:
-#             *args: Multiple separate observation tensors
-#                    args = (obs_term_1, obs_term_2, ..., obs_term_n)
-        
-#         Returns:
-#             actions: Predicted actions (batch, num_actions)
-#         """
-#         # Concatenate separate observation terms
-#         obs = torch.cat(args, dim=-1)
-#         return self.actor(self.normalizer(obs))
-
-#     def export(self, path, filename):
-#         """Export the combined policy to ONNX format.
-        
-#         Args:
-#             path: Directory to save the ONNX file
-#             filename: Name of the ONNX file
-#         """
-#         self.to("cpu")
-#         self.eval()
-        
-#         # Create separate dummy inputs for each observation term
-#         dummy_inputs = []
-#         for dim, history_len in zip(self.observation_dims, self.observation_history_lengths):
-#             total_dim = dim * history_len
-#             dummy_inputs.append(torch.zeros(1, total_dim))
-        
-#         input_names = list(self.observation_names)
-        
-#         torch.onnx.export(
-#             self,
-#             tuple(dummy_inputs),
-#             os.path.join(path, filename),
-#             export_params=True,
-#             opset_version=11,
-#             verbose=self.verbose,
-#             input_names=input_names,
-#             output_names=["actions"],
-#             dynamic_axes={},
-#         )
-
-
 class _OnnxSonicRobotPolicyExporter(_OnnxPolicyExporter):
     """Robot-only Policy Exporter for SONIC architecture.
     
@@ -356,7 +282,7 @@ class _OnnxSonicRobotPolicyExporter(_OnnxPolicyExporter):
         self.observation_history_lengths: list[int] = []
         
         for i, name in enumerate(all_obs_names):
-            if name != "smplx_command":  # Exclude human command
+            if name not in ["smplx_command", "keypoints_command"]:  # Exclude human command
                 self.observation_names.append(name)
                 self.observation_dims.append(all_obs_dims[i])
                 
@@ -443,7 +369,7 @@ class _OnnxSonicHumanPolicyExporter(_OnnxPolicyExporter):
         self.observation_history_lengths: list[int] = []
         
         for i, name in enumerate(all_obs_names):
-            if name != "command":  # Exclude robot command
+            if name not in ["command", "keypoints_command"]:  # Exclude robot command
                 self.observation_names.append(name)
                 self.observation_dims.append(all_obs_dims[i])
                 
@@ -502,7 +428,88 @@ class _OnnxSonicHumanPolicyExporter(_OnnxPolicyExporter):
             dynamic_axes={},
         )
         
+class _OnnxSonicKeypointsPolicyExporter(_OnnxPolicyExporter):
+    """Keypoints Policy Exporter for SONIC architecture.
     
+    This exporter exports only the keypoints command branch of the Actor_SONIC policy.
+    It uses the keypoints_encoder, FSQ quantizer, and action decoder.
+    Always exports with separate inputs for each observation term (excluding robot_command).
+    """
+    def __init__(self, actor_critic, env=None, normalizer=None, verbose=False):
+        super().__init__(actor_critic, normalizer, verbose)
+        
+        # Extract Actor_SONIC specific dimensions
+        self.actor_sg_dim = actor_critic.actor.actor_sg_dim
+        self.actor_sh_dim = actor_critic.actor.actor_sh_dim
+        self.actor_sk_dim = getattr(actor_critic.actor, "actor_sk_dim", 0)
+        self.num_actor_obs = actor_critic.actor.num_actor_obs
+        self.num_actions = actor_critic.actor.num_actions
+        
+        # Extract observation manager info and filter for human only
+        all_obs_names = env.observation_manager.active_terms["policy"]
+        group_obs_term_dim = env.observation_manager._group_obs_term_dim["policy"]
+        all_obs_dims = [dims[-1] for dims in group_obs_term_dim]
+        
+        # Filter command
+        self.observation_names = []
+        self.observation_dims = []
+        self.observation_history_lengths: list[int] = []
+        
+        for i, name in enumerate(all_obs_names):
+            if name not in ["command", "smplx_command"]:  # Exclude keypoints command
+                self.observation_names.append(name)
+                self.observation_dims.append(all_obs_dims[i])
+                
+                term_cfg = env.observation_manager.cfg.policy.to_dict()[name]
+                history_length = term_cfg["history_length"]
+                self.observation_history_lengths.append(1 if history_length == 0 else history_length)
+
+    def forward(self, *args):
+        """Forward pass using human-only branch (forward_smplx_exporter).
+        
+        Args:
+            *args: Multiple separate observation tensors
+                   args = (obs_term_1, obs_term_2, ..., obs_term_n)
+                   NOTE: Excludes robot_command, contains [smplx_command, motion_anchor_ori_b, base_ang_vel,
+                         projected_gravity, joint_pos, joint_vel, actions]
+        
+        Returns:
+            actions: Predicted actions (batch, num_actions)
+        """
+        obs = torch.cat(args, dim=-1)
+        keypoints_state = obs[:, :self.actor_sk_dim]
+        proprioceptive_state = obs[:, self.actor_sk_dim:]
+        return self.actor.forward_smplx_exporter(keypoints_state, proprioceptive_state)
+
+    def export(self, path, filename):
+        """Export the human-only policy to ONNX format.
+        
+        Args:
+            path: Directory to save the ONNX file
+            filename: Name of the ONNX file
+        """
+        self.to("cpu")
+        self.eval()
+        
+        # Create separate dummy inputs for each observation term (excluding robot_command)
+        dummy_inputs = []
+        for dim, history_len in zip(self.observation_dims, self.observation_history_lengths):
+            total_dim = dim * history_len
+            dummy_inputs.append(torch.zeros(1, total_dim))
+        
+        input_names = list(self.observation_names)
+        
+        torch.onnx.export(
+            self,
+            tuple(dummy_inputs),
+            os.path.join(path, filename),
+            export_params=True,
+            opset_version=11,
+            verbose=self.verbose,
+            input_names=input_names,
+            output_names=["actions"],
+            dynamic_axes={},
+        )
 
 def list_to_csv_str(arr, *, decimals: int = 3, delimiter: str = ",") -> str:
     fmt = f"{{:.{decimals}f}}"
