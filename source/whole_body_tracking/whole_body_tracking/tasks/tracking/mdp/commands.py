@@ -1154,6 +1154,40 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
             self.dataloader.motion_buffer.robot_keypoints_rot[self.future_global_time_steps]
         ], dim=-1)
         return keypoints
+    
+    
+    def motion_dual_ae_cmd(self, interval: int, frames: int):
+        """ Get robot amd smplx command"""
+        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
+        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
+        
+        # Clamp to max valid global timestep for each motion
+        # Each environment may be at a different motion, so we need per-motion clamping
+        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
+        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
+        
+        robot_cmd = self.dataloader.motion_buffer.joint_pos[self.future_global_time_steps]
+        smplx_cmd = self.dataloader.motion_buffer.smplx_pose_body[self.future_global_time_steps]
+        
+        return torch.cat([robot_cmd, smplx_cmd], dim=-1)
+    
+    def motion_triple_ae_cmd(self, interval: int, frames: int):
+        """ Get robot, smplx, and keypoints command"""
+        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
+        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
+        
+        # Clamp to max valid global timestep for each motion
+        # Each environment may be at a different motion, so we need per-motion clamping
+        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
+        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
+        
+        robot_cmd = self.dataloader.motion_buffer.joint_pos[self.future_global_time_steps]
+        smplx_cmd = self.dataloader.motion_buffer.smplx_pose_body[self.future_global_time_steps]
+        keypoints_cmd = torch.cat([
+            self.dataloader.motion_buffer.robot_keypoints_trans[self.future_global_time_steps],
+            self.dataloader.motion_buffer.robot_keypoints_rot[self.future_global_time_steps]
+        ], dim=-1)
+        return torch.cat([robot_cmd, smplx_cmd, keypoints_cmd], dim=-1)
         
 @configclass
 class SONIC_MultiMotionCommandCfg(MultiMotionCommandCfg):
