@@ -248,12 +248,12 @@ gym.register(
 )
 
 gym.register(
-    id="SONIC-MultiTracking-Flat-G1-TripleAE-Scratch-Human-v0",
+    id="SONIC-MultiTracking-Flat-G1-TripleAE-Scratch-SMPLX-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": sonic_flat_env_cfg.SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX_wKeypoints,
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_TripleAE_Scratch_Human_PPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_TripleAE_Scratch_SMPLX_PPORunnerCfg",
     },
 )
 
