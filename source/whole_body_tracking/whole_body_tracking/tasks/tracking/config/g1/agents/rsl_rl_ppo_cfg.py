@@ -11,6 +11,8 @@ from whole_body_tracking.rsl_rl import (
     RslRl_Projection_PPOAlgorithmCfg,
     RslRl_Dual_AE_PPOPolicyCfg,
     RslRl_Dual_AE_PPOAlgorithmCfg,
+    RslRl_Triple_AE_PPOPolicyCfg,
+    RslRl_Triple_AE_PPOAlgorithmCfg,
 )
 
 
@@ -350,3 +352,76 @@ class SONIC_Multi_G1Flat_DualAE_Scratch_SMPLX_PPORunnerCfg(SONIC_Multi_G1Flat_Du
         super().__post_init__()
         self.algorithm.finetune_human_encoder = False # train all networks from scratch
         self.policy.activate_signals = "smplx" # Use smplx signals for training
+        
+        
+        
+###########
+# Triple AE
+###########
+
+@configclass
+class SONIC_Multi_G1Flat_TripleAE_Scratch_Robot_PPORunnerCfg(G1FlatPPORunnerCfg):
+    max_iterations = 30_000
+    experiment_name = "sonic_multi_g1_flat_tripleae_scratch_robot"
+    empirical_normalization = False # disable empirical normalization for high-dim input
+    policy = RslRl_Triple_AE_PPOPolicyCfg(
+        init_noise_std=1.0,
+        actor_hidden_dims=[512, 256, 128],
+        critic_hidden_dims=[512, 256, 128],
+        activation="elu",
+        # Triple_AE specific configs
+        actor_sg_dim=290,
+        actor_sh_dim=1260, # human state dimension 126x10
+        actor_sk_dim=450,  # keypoints state dimension 5x9x10 (5 keypoints, 9 dims per keypoint, 10 frames)
+        latent_dim=64,
+        activate_signals="robot", # Use robot signals for zero-shot training
+        robot_encoder_hidden_dims=[1024, 512, 256],
+        human_encoder_hidden_dims=[1024, 512, 256],
+        keypoints_encoder_hidden_dims=[1024, 512, 256],
+        robot_decoder_hidden_dims=[256, 512, 1024],
+        human_decoder_hidden_dims=[256, 512, 1024],
+        keypoints_decoder_hidden_dims=[256, 512, 1024],
+    )
+    algorithm = RslRl_Triple_AE_PPOAlgorithmCfg(
+        value_loss_coef=1.0,
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.005,
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=1.0e-3,
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+        # specific to Triple_AE_PPO
+        reconstruction_loss_coef_sg=5e-1,
+        reconstruction_loss_coef_sh=1e-1,
+        reconstruction_loss_coef_sk=1e-1,
+        alignment_loss_coef=1.0,
+        consistency_loss_coef=5.0,
+        finetune_human_encoder=False, # not finetune in scratch training
+        finetune_robot_encoder=False,
+        finetune_keypoints_encoder=False,
+    )
+
+@configclass
+class SONIC_Multi_G1Flat_TripleAE_Scratch_SMPLX_PPORunnerCfg(SONIC_Multi_G1Flat_TripleAE_Scratch_Robot_PPORunnerCfg):
+    max_iterations = 30_000
+    experiment_name = "sonic_multi_g1_flat_tripleae_scratch_smplx"
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.algorithm.finetune_human_encoder = False # train all networks from scratch
+        self.policy.activate_signals = "smplx" # Use smplx signals for training
+
+@configclass
+class SONIC_Multi_G1Flat_TripleAE_Scratch_Keypoints_PPORunnerCfg(SONIC_Multi_G1Flat_TripleAE_Scratch_Robot_PPORunnerCfg):
+    max_iterations = 30_000
+    experiment_name = "sonic_multi_g1_flat_tripleae_scratch_keypoints"
+    
+    def __post_init__(self):
+        super().__post_init__()
+        self.algorithm.finetune_keypoints_encoder = False # train all networks from scratch
+        self.policy.activate_signals = "keypoints" # Use keypoints signals for training

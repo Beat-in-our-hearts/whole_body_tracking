@@ -9,4 +9,6 @@ from .rl_cfg import (
     RslRl_Projection_PPOAlgorithmCfg,
     RslRl_Dual_AE_PPOPolicyCfg,
     RslRl_Dual_AE_PPOAlgorithmCfg,
+    RslRl_Triple_AE_PPOPolicyCfg,
+    RslRl_Triple_AE_PPOAlgorithmCfg,
 )

@@ -230,3 +230,39 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_DualAE_Scratch_SMPLX_PPORunnerCfg",
     },
 )
+
+
+
+################
+# triple AE
+################
+
+gym.register(
+    id="SONIC-MultiTracking-Flat-G1-TripleAE-Scratch-Robot-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": sonic_flat_env_cfg.SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX_wKeypoints,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_TripleAE_Scratch_Robot_PPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="SONIC-MultiTracking-Flat-G1-TripleAE-Scratch-Human-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": sonic_flat_env_cfg.SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX_wKeypoints,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_TripleAE_Scratch_Human_PPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="SONIC-MultiTracking-Flat-G1-TripleAE-Scratch-Keypoints-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": sonic_flat_env_cfg.SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX_wKeypoints,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:SONIC_Multi_G1Flat_TripleAE_Scratch_Keypoints_PPORunnerCfg",
+    },
+)
