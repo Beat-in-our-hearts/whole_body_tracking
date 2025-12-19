@@ -309,7 +309,7 @@ class SONIC_Multi_G1Flat_DualAE_Scratch_PPORunnerCfg(G1FlatPPORunnerCfg):
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
         # Dual_AE specific configs
-        actor_sg_dim=580,
+        actor_sg_dim=290,
         actor_sh_dim=1260, # human state dimension 126x10
         latent_dim=64,
         activate_signals="robot", # Use robot signals for zero-shot training
@@ -332,10 +332,10 @@ class SONIC_Multi_G1Flat_DualAE_Scratch_PPORunnerCfg(G1FlatPPORunnerCfg):
         desired_kl=0.01,
         max_grad_norm=1.0,
         # specific to Dual_AE_PPO
-        reconstruction_loss_coef_sg=1.0,
+        reconstruction_loss_coef_sg=5e-1,
         reconstruction_loss_coef_sh=1e-1,
-        alignment_loss_coef=1e-1,
-        consistency_loss_coef=0.0,
+        alignment_loss_coef=1.0,
+        consistency_loss_coef=5.0,
         finetune_human_encoder=False, # not finetune in scratch training
         finetune_robot_encoder=False,
     )

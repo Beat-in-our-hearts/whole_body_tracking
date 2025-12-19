@@ -82,6 +82,15 @@ def motion_anchor_ori_b(env: ManagerBasedEnv, command_name: str) -> torch.Tensor
     mat = matrix_from_quat(ori)
     return mat[..., :2].reshape(mat.shape[0], -1)
 
+def motion_robot_joint_pos(
+    env: ManagerBasedEnv, 
+    command_name: str,
+    interval: int,
+    frames: int,
+    ) -> torch.Tensor:
+    command = env.command_manager.get_term(command_name)
+
+    return command.motion_robot_joint_pos(interval, frames).view(env.num_envs, -1)
 
 def motion_robot_joint_pos_vel(
     env: ManagerBasedEnv, 

@@ -833,7 +833,19 @@ class MultiMotionCommand(CommandTerm):
         # Index into motion_buffer using global timesteps (abstracted away motion_id/time_steps)
         return torch.cat([self.dataloader.motion_buffer.joint_pos[self.future_global_time_steps], 
                           self.dataloader.motion_buffer.joint_vel[self.future_global_time_steps]], dim=-1)
-
+        
+    def motion_robot_joint_pos(self, interval: int, frames: int):
+        # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
+        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
+        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
+        
+        # Clamp to max valid global timestep for each motion
+        # Each environment may be at a different motion, so we need per-motion clamping
+        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
+        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
+        
+        return self.dataloader.motion_buffer.joint_pos[self.future_global_time_steps]
+            
 @configclass
 class MultiMotionCommandCfg(CommandTermCfg):
     """Configuration for multi-motion command with global bins sampling."""
