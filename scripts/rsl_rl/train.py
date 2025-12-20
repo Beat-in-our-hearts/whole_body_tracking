@@ -161,6 +161,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             agent_cfg.to_dict(), 
             log_dir=log_dir, 
             device=agent_cfg.device,
+            enable_keypoints_export=getattr(env_cfg, "SONIC_Keypoints_Export", False),
         )
     else:
         runner = OnPolicyRunner(

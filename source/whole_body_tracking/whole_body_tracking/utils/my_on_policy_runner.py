@@ -82,10 +82,14 @@ class SONICOnPolicyRunner(OnPolicyRunner):
         log_dir: str | None = None, 
         device="cpu", 
         registry_name: str = None,
+        enable_smplx_export: bool = True,
+        enable_keypoints_export: bool = False,
     ):
         super().__init__(env, train_cfg, log_dir, device)
         self.registry_name = registry_name
-
+        self.enable_smplx_export = enable_smplx_export
+        self.enable_keypoints_export = enable_keypoints_export
+    
     def save(self, path: str, infos=None):
         """Save the model and training information."""
         super().save(path, infos)
@@ -106,18 +110,33 @@ class SONICOnPolicyRunner(OnPolicyRunner):
             attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename_obs_full)
             wandb.save(policy_path + filename_obs_full, base_path=os.path.dirname(policy_path))
             
-            # 2. Export smplx policy
-            filename = base_filename + "_smplx_policy.onnx"
-            export_motion_policy_as_onnx(
-                self.env.unwrapped, 
-                self.alg.policy, 
-                type="sonic_human",
-                normalizer=self.obs_normalizer, 
-                path=policy_path, 
-                filename=filename,
-            )
-            attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename)
-            wandb.save(policy_path + filename, base_path=os.path.dirname(policy_path))
+            if self.enable_smplx_export:
+                # 2. Export smplx policy
+                filename = base_filename + "_smplx_policy.onnx"
+                export_motion_policy_as_onnx(
+                    self.env.unwrapped, 
+                    self.alg.policy, 
+                    type="sonic_human",
+                    normalizer=self.obs_normalizer, 
+                    path=policy_path, 
+                    filename=filename,
+                )
+                attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename)
+                wandb.save(policy_path + filename, base_path=os.path.dirname(policy_path))
+                
+            # 3. Export smplx keypoints policy
+            if self.enable_keypoints_export:
+                filename_keypoints = base_filename + "_smplx_keypoints_policy.onnx"
+                export_motion_policy_as_onnx(
+                    self.env.unwrapped, 
+                    self.alg.policy, 
+                    type="sonic_keypoints",
+                    normalizer=self.obs_normalizer, 
+                    path=policy_path, 
+                    filename=filename_keypoints,
+                )
+                attach_onnx_metadata(self.env.unwrapped, wandb.run.name, path=policy_path, filename=filename_keypoints)
+                wandb.save(policy_path + filename_keypoints, base_path=os.path.dirname(policy_path))
 
             # link the artifact registry to this run
             if self.registry_name is not None:

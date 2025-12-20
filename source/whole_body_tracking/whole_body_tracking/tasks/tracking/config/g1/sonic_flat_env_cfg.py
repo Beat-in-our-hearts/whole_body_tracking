@@ -71,6 +71,7 @@ class SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX(SONIC_MultiTrackingEnvCfg):
 class SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX_wKeypoints(SONIC_MultiTrackingEnvCfg):
         
     SONIC_FLAG: bool = True
+    SONIC_Keypoints_Export: bool = True
     
     def __post_init__(self):
         super().__post_init__()

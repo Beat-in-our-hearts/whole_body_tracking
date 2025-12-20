@@ -60,6 +60,8 @@ def export_motion_policy_as_onnx(
         policy_exporter = _OnnxSonicRobotPolicyExporter(actor_critic, env, normalizer, verbose)
     elif type == "sonic_human":
         policy_exporter = _OnnxSonicHumanPolicyExporter(actor_critic, env, normalizer, verbose)
+    elif type == "sonic_keypoints":
+        policy_exporter = _OnnxSonicKeypointsPolicyExporter(actor_critic, env, normalizer, verbose)
     else:
         raise ValueError(f"Unknown policy export type: {type}")
     
