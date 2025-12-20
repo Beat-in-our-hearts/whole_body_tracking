@@ -19,7 +19,7 @@ def export_motion_policy_as_onnx(
     env: ManagerBasedRLEnv | None,
     actor_critic: object,
     path: str,
-    type: Literal["single_motion", "multi_motion", "sonic", "sonic_robot", "sonic_human"] = "multi_motion",
+    type: Literal["single_motion", "multi_motion", "sonic", "sonic_robot", "sonic_human", "sonic_keypoints"] = "multi_motion",
     normalizer: object | None = None,
     filename="policy.onnx",
     verbose=False,
@@ -481,7 +481,7 @@ class _OnnxSonicKeypointsPolicyExporter(_OnnxPolicyExporter):
         obs = torch.cat(args, dim=-1)
         keypoints_state = obs[:, :self.actor_sk_dim]
         proprioceptive_state = obs[:, self.actor_sk_dim:]
-        return self.actor.forward_smplx_exporter(keypoints_state, proprioceptive_state)
+        return self.actor.forward_keypoints_exporter(keypoints_state, proprioceptive_state)
 
     def export(self, path, filename):
         """Export the human-only policy to ONNX format.

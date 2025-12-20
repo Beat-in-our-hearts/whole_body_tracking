@@ -26,6 +26,7 @@ parser.add_argument("--datasets", type=str, default=None, help="Comma separated 
 parser.add_argument("--splits", type=str, default=None, help="Splits name to use for datasets.")
 parser.add_argument("--wandb_run_path", type=str, default=None, help="Path to the wandb run to load the model from.")
 parser.add_argument("--wandb_alg_cfg", action="store_true", default=False, help="Load algorithm config from wandb run.")
+parser.add_argument("--export_type", type=str, default="multi_motion", choices=["single_motion", "multi_motion", "sonic", "sonic_robot", "sonic_human", "sonic_keypoints"], help="Type of export: single_motion or multi_motion.")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -215,7 +216,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(f"[ERROR] Failed to export JIT policy: {e}")
         
     # Determine export type
-    export_type = "single_motion" if args_cli.disable_multi_motion else "multi_motion"
+    export_type = args_cli.export_type
+    print(f"[INFO] Exporting ONNX policy with type: {export_type}")
 
     # 1. Export obs_full version - each observation term as separate input
     export_motion_policy_as_onnx(
@@ -225,30 +227,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         type=export_type,
         obs_full=True,
         path=export_model_dir,
-        filename="policy_obs_full.onnx",
+        filename=f"{export_type}_policy.onnx",
     )
     attach_onnx_metadata(
         env.unwrapped, 
         args_cli.wandb_run_path if args_cli.wandb_run_path else "none", 
         export_model_dir,
-        filename="policy_obs_full.onnx"
-    )
-
-    # 2. Export traditional version - single concatenated obs input
-    export_motion_policy_as_onnx(
-        env.unwrapped,
-        policy_nn,
-        normalizer=normalizer,
-        type=export_type,
-        obs_full=False,
-        path=export_model_dir,
-        filename="policy.onnx",
-    )
-    attach_onnx_metadata(
-        env.unwrapped, 
-        args_cli.wandb_run_path if args_cli.wandb_run_path else "none", 
-        export_model_dir,
-        filename="policy.onnx"
+        filename=f"{export_type}_policy.onnx",
     )
     
     # reset environment
