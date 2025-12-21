@@ -193,6 +193,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
             print(f"[INFO]: Loading model checkpoint from: {resume_path}")
         else:
+            if app_launcher.local_rank != 0:
+                return  # only rank 0 process handles wandb download
             import wandb
 
             run_path = args_cli.resume_wandb_run_path
