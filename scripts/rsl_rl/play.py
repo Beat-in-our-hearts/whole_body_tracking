@@ -27,6 +27,7 @@ parser.add_argument("--splits", type=str, default=None, help="Splits name to use
 parser.add_argument("--wandb_run_path", type=str, default=None, help="Path to the wandb run to load the model from.")
 parser.add_argument("--wandb_alg_cfg", action="store_true", default=False, help="Load algorithm config from wandb run.")
 parser.add_argument("--export_type", type=str, default="multi_motion", choices=["single_motion", "multi_motion", "sonic", "sonic_robot", "sonic_human", "sonic_keypoints"], help="Type of export: single_motion or multi_motion.")
+parser.add_argument("--export_name", type=str, default=None, help="Name of the export file.")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -227,13 +228,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         type=export_type,
         obs_full=True,
         path=export_model_dir,
-        filename=f"{export_type}_policy.onnx",
+        filename=f"{export_type}_policy.onnx" if args_cli.export_name is None else f"{args_cli.export_name}.onnx",
     )
     attach_onnx_metadata(
         env.unwrapped, 
         args_cli.wandb_run_path if args_cli.wandb_run_path else "none", 
         export_model_dir,
-        filename=f"{export_type}_policy.onnx",
+        filename=f"{export_type}_policy.onnx" if args_cli.export_name is None else f"{args_cli.export_name}.onnx",
     )
     
     # reset environment
