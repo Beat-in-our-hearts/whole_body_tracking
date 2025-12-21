@@ -193,23 +193,22 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
             print(f"[INFO]: Loading model checkpoint from: {resume_path}")
         else:
-            if app_launcher.local_rank != 0:
-                return  # only rank 0 process handles wandb download
-            import wandb
+            if app_launcher.local_rank == 0:
+                import wandb
 
-            run_path = args_cli.resume_wandb_run_path
-            api = wandb.Api()
-            wandb_run = api.run(run_path)
-            
-            files = [file.name for file in wandb_run.files() if "model" in file.name]
-            file = max(files, key=lambda x: int(x.split("_")[1].split(".")[0]))
+                run_path = args_cli.resume_wandb_run_path
+                api = wandb.Api()
+                wandb_run = api.run(run_path)
+                
+                files = [file.name for file in wandb_run.files() if "model" in file.name]
+                file = max(files, key=lambda x: int(x.split("_")[1].split(".")[0]))
 
-            wandb_file = wandb_run.file(str(file))
-            wandb_file.download("./logs/rsl_rl/temp_resume/", replace=True)
+                wandb_file = wandb_run.file(str(file))
+                wandb_file.download("./logs/rsl_rl/temp_resume/", replace=True)
 
-            print(f"[INFO]: Loading model checkpoint from wandb: {run_path}/{file}")
-            resume_path = f"./logs/rsl_rl/temp_resume/{file}"
-            
+                print(f"[INFO]: Loading model checkpoint from wandb: {run_path}/{file}")
+                resume_path = f"./logs/rsl_rl/temp_resume/{file}"
+                
         # load previously trained model
         runner.load(resume_path)
 
