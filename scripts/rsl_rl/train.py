@@ -52,6 +52,7 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import os
 import torch
+import torch.distributed as dist
 from datetime import datetime
 
 from isaaclab.envs import (
@@ -193,21 +194,34 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
             print(f"[INFO]: Loading model checkpoint from: {resume_path}")
         else:
+            # only local_rank 0 process downloads from wandb
+            run_path = args_cli.resume_wandb_run_path
+            file = ""
+            
             if app_launcher.local_rank == 0:
                 import wandb
 
-                run_path = args_cli.resume_wandb_run_path
                 api = wandb.Api()
                 wandb_run = api.run(run_path)
                 
-                files = [file.name for file in wandb_run.files() if "model" in file.name]
+                files = [f.name for f in wandb_run.files() if "model" in f.name]
                 file = max(files, key=lambda x: int(x.split("_")[1].split(".")[0]))
 
-                wandb_file = wandb_run.file(str(file))
-                wandb_file.download("./logs/rsl_rl/temp_resume/", replace=True)
+                if os.path.exists(f"./logs/rsl_rl/temp_resume/{run_path}/{file}"):
+                    print(f"[INFO]: Checkpoint already exists locally: ./logs/rsl_rl/temp_resume/{run_path}/{file}")
+                else:
+                    wandb_file = wandb_run.file(str(file))
+                    wandb_file.download(f"./logs/rsl_rl/temp_resume/{run_path}", replace=True)
 
                 print(f"[INFO]: Loading model checkpoint from wandb: {run_path}/{file}")
-                resume_path = f"./logs/rsl_rl/temp_resume/{file}"
+            
+            # synchronize all processes and broadcast filename from rank 0
+            if args_cli.distributed:
+                file_list = [file]
+                dist.broadcast_object_list(file_list, src=0)
+                file = file_list[0]
+            
+            resume_path = f"./logs/rsl_rl/temp_resume/{run_path}/{file}"
                 
         # load previously trained model
         runner.load(resume_path)
