@@ -28,6 +28,7 @@ parser.add_argument("--distributed", action="store_true", default=False, help="R
 parser.add_argument("--disable_multi_motion", action="store_true", default=False, help="Disable multi-motion training.")
 parser.add_argument("--motion_file", type=str, default=None, help="Path to the motion file to load.")
 parser.add_argument("--pretrain_vae_ckpt", type=str, default=None, help="Path to the pre-trained VAE checkpoint.")
+parser.add_argument("--resume_wandb_run_path", type=str, default=None, help="Path to the wandb run to resume from")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -187,9 +188,26 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     runner.add_git_repo_to_log(__file__)
     # save resume path before creating a new log_dir
     if agent_cfg.resume:
-        # get path to previous checkpoint
-        resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
-        print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+        if args_cli.resume_wandb_run_path is None:
+            # get path to previous checkpoint
+            resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+        else:
+            import wandb
+
+            run_path = args_cli.resume_wandb_run_path
+            api = wandb.Api()
+            wandb_run = api.run(run_path)
+            
+            files = [file.name for file in wandb_run.files() if "model" in file.name]
+            file = max(files, key=lambda x: int(x.split("_")[1].split(".")[0]))
+
+            wandb_file = wandb_run.file(str(file))
+            wandb_file.download("./logs/rsl_rl/temp_resume/", replace=True)
+
+            print(f"[INFO]: Loading model checkpoint from wandb: {run_path}/{file}")
+            resume_path = f"./logs/rsl_rl/temp_resume/{file}"
+            
         # load previously trained model
         runner.load(resume_path)
 
