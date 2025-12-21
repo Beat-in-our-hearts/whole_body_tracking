@@ -51,6 +51,9 @@ cd ..
 ```
 # 1. main code
 git clone https://github.com/Renforce-Dynamics/whole_body_tracking.git
+cd whole_body_tracking
+git switch dev.autoencoder
+cd ..
 
 # 2. unitree_g1 assets, need proxy
 git clone https://huggingface.co/datasets/unitreerobotics/unitree_model
