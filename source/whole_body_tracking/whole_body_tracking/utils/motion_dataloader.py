@@ -6,6 +6,8 @@ reinforcement learning environments.
 """
 from collections.abc import Sequence
 import torch
+from itertools import accumulate
+import bisect
 
 from whole_body_tracking.utils.motion_dataset import Motion_Dataset
 
@@ -216,6 +218,7 @@ class Motion_Dataloader:
         
         Strategy: Assign complete motions to ranks such that each rank gets roughly
         equal number of frames. Motions are never split across ranks.
+        Ensures deterministic, non-overlapping, continuous ranges across all ranks.
         
         Args:
             all_motion_lengths: List of frame counts for all motions in dataset
@@ -223,36 +226,25 @@ class Motion_Dataloader:
         total_frames = sum(all_motion_lengths)
         target_frames_per_rank = total_frames / self.world_size
         
-        # Greedy assignment: assign each motion to the rank with fewest frames so far
-        rank_frames = [0] * self.world_size
-        motion_to_rank = [0] * self.global_num_motions
+        # cumsum
+        cumulative_lengths = list(accumulate(all_motion_lengths))
+        cur_rank_tg_start_frames = self.rank * target_frames_per_rank
+        cur_rank_tg_end_frames = (self.rank + 1) * target_frames_per_rank
         
-        for motion_idx in range(self.global_num_motions):
-            # Find rank with fewest frames
-            min_rank = rank_frames.index(min(rank_frames))
-            motion_to_rank[motion_idx] = min_rank
-            rank_frames[min_rank] += all_motion_lengths[motion_idx]
-        
-        # Find start and end indices for this rank
-        self.start_motion_idx = motion_to_rank.index(self.rank) if self.rank in motion_to_rank else 0
-        self.end_motion_idx = self.start_motion_idx
-        
-        # Find continuous range of motions assigned to this rank
-        # (assuming motions assigned to same rank are continuous)
-        for i in range(len(motion_to_rank)):
-            if motion_to_rank[i] == self.rank:
-                if self.start_motion_idx > i:
-                    self.start_motion_idx = i
-                if self.end_motion_idx <= i:
-                    self.end_motion_idx = i + 1
+        # find motion index 
+        start_motion_idx = bisect.bisect_left(cumulative_lengths.copy(), cur_rank_tg_start_frames)
+        end_motion_idx = bisect.bisect_left(cumulative_lengths.copy(), cur_rank_tg_end_frames)
+        self.start_motion_idx = start_motion_idx
+        self.end_motion_idx = end_motion_idx
         
         rank_total_frames = sum(all_motion_lengths[i] for i in range(self.start_motion_idx, self.end_motion_idx))
         
-        print(f"[Motion_Dataloader] Rank {self.rank} motion assignment:")
+        print(f"[Motion_Dataloader] Rank {self.rank}/{self.world_size} motion assignment:")
         print(f"  - Motion range: [{self.start_motion_idx}, {self.end_motion_idx})")
-        print(f"  - Target frames: {target_frames_per_rank:.0f}")
+        print(f"  - Number of motions: {self.end_motion_idx - self.start_motion_idx}")
+        print(f"  - Target frames per rank: {target_frames_per_rank:.0f}")
         print(f"  - Assigned frames: {rank_total_frames}")
-    
+
     def get_motion_length(self, motion_id: int) -> int:
         """Get length of a specific motion."""
         return self.motion_lengths[motion_id].item()
