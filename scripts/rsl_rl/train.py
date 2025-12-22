@@ -105,6 +105,22 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env_cfg.seed = seed
         agent_cfg.seed = seed
         
+        # Pass distributed training information to command config
+        # These will be used for data sharding in Motion_Dataloader
+        world_size = int(os.environ.get("WORLD_SIZE", 1))
+        rank = int(os.environ.get("RANK", 0))
+        local_rank = app_launcher.local_rank
+        
+        env_cfg.commands.motion.distributed_world_size = world_size
+        env_cfg.commands.motion.distributed_rank = rank
+        env_cfg.commands.motion.distributed_data_split = True
+        
+        print(f"[INFO] Distributed training setup:")
+        print(f"  - World size: {world_size}")
+        print(f"  - Rank: {rank}")
+        print(f"  - Local rank: {local_rank}")
+        print(f"  - Data split enabled: True")
+        
     # set viewer configuration
     env_cfg.viewer = ViewerCfg(
         eye = (8.0, 8.0, 8.0),

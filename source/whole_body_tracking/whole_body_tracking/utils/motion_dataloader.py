@@ -83,17 +83,26 @@ class Motion_Dataloader:
         self,
         dataset: Motion_Dataset,
         body_indexes: Sequence[int],
-        device: str = "cuda"
+        device: str = "cuda",
+        world_size: int = 1,
+        rank: int = 0,
+        enable_data_split: bool = False,
     ):
         """Initialize the dataloader with concatenated sequences.
         
         Args:
             dataset: Motion_Dataset instance
+            body_indexes: Indices of bodies to extract
             device: Device to load tensors on
+            world_size: Total number of distributed processes (default: 1 for single process)
+            rank: Current process rank (default: 0)
+            enable_data_split: Whether to enable distributed data sharding (default: False)
         """
         self.dataset = dataset
         self.device = device
-        self.num_motions = len(dataset)
+        self.world_size = world_size
+        self.rank = rank
+        self.enable_data_split = enable_data_split
         
         self._body_indexes = body_indexes
         
@@ -101,17 +110,23 @@ class Motion_Dataloader:
         self.motion_buffer = self.MotionBuffer(self._body_indexes)
         
         # Motion metadata (will be populated in _preload_and_concatenate)
-        self.motion_lengths: torch.Tensor  # [num_motions], length of each motion
-        self.motion_offsets: torch.Tensor  # [num_motions], starting index of each motion
-        self.motion_fps: torch.Tensor      # [num_motions], FPS of each motion
-        self.time_step_total: int             # Total number of frames in concatenated buffer
+        self.motion_lengths: torch.Tensor  # [num_motions_local], length of each motion in this rank
+        self.motion_offsets: torch.Tensor  # [num_motions_local], starting index of each motion
+        self.motion_fps: torch.Tensor      # [num_motions_local], FPS of each motion
+        self.time_step_total: int          # Total number of frames in this rank's buffer
+        self.num_motions: int              # Number of motions assigned to this rank
         
-        print(f"[Motion_Dataloader] Loading and concatenating {self.num_motions} motions...")
+        # Distributed data tracking
+        self.start_motion_idx: int = 0     # Start motion index in global dataset
+        self.end_motion_idx: int = 0       # End motion index in global dataset
+        self.global_num_motions: int = len(dataset)  # Total motions in dataset
+        
+        print(f"[Motion_Dataloader] Loading and concatenating motions for rank {self.rank}/{self.world_size}...")
         
         # Load all motions and concatenate into single tensors
         self._preload_and_concatenate()
         
-        print(f"[Motion_Dataloader] Initialization complete. Total frames: {self.time_step_total}")
+        print(f"[Motion_Dataloader] Rank {self.rank} initialization complete. Total frames: {self.time_step_total}")
     
     def _preload_and_concatenate(self):
         """Preload all motions and concatenate into single tensors with offset tracking.
@@ -119,9 +134,28 @@ class Motion_Dataloader:
         This method loads all motion data upfront and concatenates sequences along
         the time dimension. Each motion's starting position is tracked in offsets.
         
+        For distributed training: if enable_data_split=True, this will partition motions
+        across ranks based on frame count to balance load.
+        
         Memory-efficient: No padding, only raw data storage.
         """
-        # Temporary lists for collecting data
+        # === Step 1: Load motion metadata for all motions (no GPU transfer yet) ===
+        all_motion_lengths = []
+        for i in range(self.global_num_motions):
+            sample = self.dataset[i]
+            all_motion_lengths.append(sample["length"])
+        
+        # === Step 2: Determine which motions to load for this rank ===
+        if self.enable_data_split and self.world_size > 1:
+            self._compute_rank_motion_indices(all_motion_lengths)
+        else:
+            # Single process or data split disabled: load all motions
+            self.start_motion_idx = 0
+            self.end_motion_idx = self.global_num_motions
+        
+        self.num_motions = self.end_motion_idx - self.start_motion_idx
+        
+        # === Step 3: Load and concatenate only this rank's motions ===
         data_lists = {
             'joint_pos': [],
             'joint_vel': [],
@@ -133,8 +167,8 @@ class Motion_Dataloader:
         lengths = []
         fps_list = []
         
-        # Load all motions
-        for i in range(self.num_motions):
+        # Load motions assigned to this rank
+        for i in range(self.start_motion_idx, self.end_motion_idx):
             sample = self.dataset[i]
             motion_data = sample["motion"]
             
@@ -147,7 +181,7 @@ class Motion_Dataloader:
             lengths.append(sample["length"])
             fps_list.append(sample["fps"])
         
-        # Concatenate all sequences into motion buffer
+        # Concatenate all sequences in this rank's buffer
         self.motion_buffer.joint_pos = torch.cat(data_lists['joint_pos'], dim=0)
         self.motion_buffer.joint_vel = torch.cat(data_lists['joint_vel'], dim=0)
         self.motion_buffer._body_pos_w = torch.cat(data_lists['body_pos_w'], dim=0)
@@ -155,26 +189,69 @@ class Motion_Dataloader:
         self.motion_buffer._body_lin_vel_w = torch.cat(data_lists['body_lin_vel_w'], dim=0)
         self.motion_buffer._body_ang_vel_w = torch.cat(data_lists['body_ang_vel_w'], dim=0)
         
-        # Compute offsets for each motion (cumulative sum of lengths)
-        self.motion_lengths = torch.tensor(lengths, dtype=torch.long, device=self.device)  # [num_motions]
+        # Compute local offsets for this rank (relative to rank's buffer)
+        self.motion_lengths = torch.tensor(lengths, dtype=torch.long, device=self.device)
         self.motion_offsets = torch.cat([
             torch.tensor([0], device=self.device),
             torch.cumsum(self.motion_lengths, dim=0)[:-1]
-        ], dim=0)  # [num_motions], offsets[i] = starting index of motion i
+        ], dim=0)
         
-        # Store FPS for each motion
+        # Store FPS for this rank
         self.motion_fps = torch.tensor(fps_list, dtype=torch.float32, device=self.device)
         
-        # Store total buffer length
+        # Store total buffer length for this rank
         self.time_step_total = self.motion_buffer.joint_pos.shape[0]
         
-        print(f"[Motion_Dataloader] Concatenated tensors:")
-        print(f"  joint_pos: {self.motion_buffer.joint_pos.shape}")
-        print(f"  joint_vel: {self.motion_buffer.joint_vel.shape}")
-        print(f"  body_pos_w: {self.motion_buffer.body_pos_w.shape}")
-        print(f"  total_frames: {self.time_step_total}")
-        print(f"  motion_lengths: {self.motion_lengths.shape}, range: [{self.motion_lengths.min()}, {self.motion_lengths.max()}]")
-        print(f"  motion_offsets: {self.motion_offsets.shape}")
+        print(f"[Motion_Dataloader] Rank {self.rank} concatenated tensors:")
+        print(f"  - Motion indices: [{self.start_motion_idx}, {self.end_motion_idx})")
+        print(f"  - Number of motions: {self.num_motions}")
+        print(f"  - joint_pos: {self.motion_buffer.joint_pos.shape}")
+        print(f"  - joint_vel: {self.motion_buffer.joint_vel.shape}")
+        print(f"  - body_pos_w: {self.motion_buffer.body_pos_w.shape}")
+        print(f"  - total_frames: {self.time_step_total}")
+        print(f"  - motion_lengths range: [{self.motion_lengths.min()}, {self.motion_lengths.max()}]")
+    
+    def _compute_rank_motion_indices(self, all_motion_lengths: list[int]):
+        """Compute which motion indices are assigned to this rank.
+        
+        Strategy: Assign complete motions to ranks such that each rank gets roughly
+        equal number of frames. Motions are never split across ranks.
+        
+        Args:
+            all_motion_lengths: List of frame counts for all motions in dataset
+        """
+        total_frames = sum(all_motion_lengths)
+        target_frames_per_rank = total_frames / self.world_size
+        
+        # Greedy assignment: assign each motion to the rank with fewest frames so far
+        rank_frames = [0] * self.world_size
+        motion_to_rank = [0] * self.global_num_motions
+        
+        for motion_idx in range(self.global_num_motions):
+            # Find rank with fewest frames
+            min_rank = rank_frames.index(min(rank_frames))
+            motion_to_rank[motion_idx] = min_rank
+            rank_frames[min_rank] += all_motion_lengths[motion_idx]
+        
+        # Find start and end indices for this rank
+        self.start_motion_idx = motion_to_rank.index(self.rank) if self.rank in motion_to_rank else 0
+        self.end_motion_idx = self.start_motion_idx
+        
+        # Find continuous range of motions assigned to this rank
+        # (assuming motions assigned to same rank are continuous)
+        for i in range(len(motion_to_rank)):
+            if motion_to_rank[i] == self.rank:
+                if self.start_motion_idx > i:
+                    self.start_motion_idx = i
+                if self.end_motion_idx <= i:
+                    self.end_motion_idx = i + 1
+        
+        rank_total_frames = sum(all_motion_lengths[i] for i in range(self.start_motion_idx, self.end_motion_idx))
+        
+        print(f"[Motion_Dataloader] Rank {self.rank} motion assignment:")
+        print(f"  - Motion range: [{self.start_motion_idx}, {self.end_motion_idx})")
+        print(f"  - Target frames: {target_frames_per_rank:.0f}")
+        print(f"  - Assigned frames: {rank_total_frames}")
     
     def get_motion_length(self, motion_id: int) -> int:
         """Get length of a specific motion."""
