@@ -224,7 +224,7 @@ class Motion_Dataloader:
             all_motion_lengths: List of frame counts for all motions in dataset
         """
         total_frames = sum(all_motion_lengths)
-        target_frames_per_rank = total_frames / self.world_size
+        target_frames_per_rank = int(total_frames / self.world_size) + 1
         
         # cumsum
         cumulative_lengths = list(accumulate(all_motion_lengths))
@@ -242,7 +242,7 @@ class Motion_Dataloader:
         print(f"[Motion_Dataloader] Rank {self.rank}/{self.world_size} motion assignment:")
         print(f"  - Motion range: [{self.start_motion_idx}, {self.end_motion_idx})")
         print(f"  - Number of motions: {self.end_motion_idx - self.start_motion_idx}")
-        print(f"  - Target frames per rank: {target_frames_per_rank:.0f}")
+        print(f"  - Target frames per rank: {target_frames_per_rank}")
         print(f"  - Assigned frames: {rank_total_frames}")
 
     def get_motion_length(self, motion_id: int) -> int:
