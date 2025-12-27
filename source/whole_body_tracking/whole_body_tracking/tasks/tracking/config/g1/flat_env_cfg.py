@@ -2,7 +2,7 @@ from isaaclab.utils import configclass
 
 from whole_body_tracking.robots.g1 import G1_ACTION_SCALE, G1_CYLINDER_CFG
 from whole_body_tracking.tasks.tracking.tracking_env_cfg import TrackingEnvCfg, MultiTracking_TrackingEnvCfg, GAEMimic_TrackingEnvCfg
-from whole_body_tracking.tasks import NPZ_DATASETS_DIR, EXTEMDED_DATASETS_DIR
+from whole_body_tracking.tasks import REPLAY_DATASETS_DIR, EXTEMDED_DATASETS_DIR
 import os
 
 @configclass
@@ -40,7 +40,7 @@ class MultiTracking_G1FlatEnvCfg(MultiTracking_TrackingEnvCfg):
         
         # multi motion tracking settings
         self.commands.motion.robot_name = "g1"
-        self.commands.motion.dataset_dirs = [os.path.join(NPZ_DATASETS_DIR, "LAFAN1_Retargeting_Dataset"),]
+        self.commands.motion.dataset_dirs = [os.path.join(REPLAY_DATASETS_DIR, "LAFAN1_Retargeting_Dataset"),]
         self.commands.motion.splits = ["walk_subset", ]
         
         self.commands.motion.anchor_body_name = "pelvis"
