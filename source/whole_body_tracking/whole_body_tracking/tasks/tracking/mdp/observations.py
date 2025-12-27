@@ -121,24 +121,3 @@ def motion_keypoints_se3(
     command = env.command_manager.get_term(command_name)
 
     return command.motion_keypoints_se3(interval, frames).view(env.num_envs, -1)
-
-
-def motion_dual_ae_cmd(
-    env: ManagerBasedEnv, 
-    command_name: str,
-    interval: int,
-    frames: int,
-    ) -> torch.Tensor:
-    command = env.command_manager.get_term(command_name)
-
-    return command.motion_dual_ae_cmd(interval, frames).view(env.num_envs, -1)
-
-def motion_triple_ae_cmd(
-    env: ManagerBasedEnv, 
-    command_name: str,
-    interval: int,
-    frames: int,
-    ) -> torch.Tensor:
-    command = env.command_manager.get_term(command_name)
-
-    return command.motion_triple_ae_cmd(interval, frames).view(env.num_envs, -1)

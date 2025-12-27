@@ -166,7 +166,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env = RslRlVecEnvWrapper(env)
 
     # create runner from rsl-rl
-    sonic_flag = getattr(env_cfg, "SONIC_FLAG", False)
+    sonic_flag = getattr(env_cfg, "GAEMimic_FLAG", False)
     if sonic_flag:
         if args_cli.pretrain_vae_ckpt is not None:
             agent_cfg.algorithm.pretrain_vae = True
@@ -179,7 +179,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             agent_cfg.to_dict(), 
             log_dir=log_dir, 
             device=agent_cfg.device,
-            enable_keypoints_export=getattr(env_cfg, "SONIC_Keypoints_Export", False),
+            enable_keypoints_export=getattr(env_cfg, "GAEMimic_Keypoints_Export", False),
         )
     else:
         runner = OnPolicyRunner(

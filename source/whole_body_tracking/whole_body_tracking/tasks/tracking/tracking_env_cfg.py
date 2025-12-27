@@ -101,6 +101,56 @@ class CommandsCfg:
 
 
 @configclass
+class MultiTracking_CommandsCfg:
+    """Command specifications for the MDP."""
+
+    motion = mdp.MultiMotionCommandCfg(
+        asset_name="robot",
+        resampling_time_range=(1.0e9, 1.0e9),
+        debug_vis=True,
+        pose_range={
+            "x": (-0.05, 0.05),
+            "y": (-0.05, 0.05),
+            "z": (-0.01, 0.01),
+            "roll": (-0.1, 0.1),
+            "pitch": (-0.1, 0.1),
+            "yaw": (-0.2, 0.2),
+        },
+        velocity_range=VELOCITY_RANGE,
+        joint_position_range=(-0.1, 0.1),
+        
+        # Dataset configuration
+        dataset_dirs=MISSING,
+        robot_name=MISSING,
+        splits=MISSING,
+    )
+    
+@configclass
+class GAEMimic_CommandsCfg:
+    """Command specifications for the MDP."""
+
+    motion = mdp.GAEMimic_MultiMotionCommandCfg(
+        asset_name="robot",
+        resampling_time_range=(1.0e9, 1.0e9),
+        debug_vis=True,
+        pose_range={
+            "x": (-0.05, 0.05),
+            "y": (-0.05, 0.05),
+            "z": (-0.01, 0.01),
+            "roll": (-0.1, 0.1),
+            "pitch": (-0.1, 0.1),
+            "yaw": (-0.2, 0.2),
+        },
+        velocity_range=VELOCITY_RANGE,
+        joint_position_range=(-0.1, 0.1),
+        
+        # Dataset configuration
+        dataset_dirs=MISSING,
+        robot_name=MISSING,
+        splits=MISSING,
+    )
+
+@configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
 
@@ -120,13 +170,8 @@ class ObservationsCfg:
 
         # observation terms (order preserved)
         command = ObsTerm(func=mdp.generated_commands, params={"command_name": "motion"})
-        motion_anchor_pos_b = ObsTerm(
-            func=mdp.motion_anchor_pos_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.25, n_max=0.25)
-        )
-        motion_anchor_ori_b = ObsTerm(
-            func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05)
-        )
-        base_lin_vel = ObsTerm(func=mdp.base_lin_vel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05))
+        
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
         joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
@@ -143,8 +188,10 @@ class ObservationsCfg:
         motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
         body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
         body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
+        
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
+        projected_gravity = ObsTerm(func=mdp.projected_gravity)
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         actions = ObsTerm(func=mdp.last_action, clip=(-10.0, 10.0)) # NOTE bug actions should be clipped here as well to avoid large values
@@ -153,6 +200,68 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
     critic: PrivilegedCfg = PrivilegedCfg()
 
+
+@configclass
+class GAEMimic_ObservationsCfg:
+    """V3 robot_cmd, smplx_cmd, keypoints_cmd observations."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+        command = ObsTerm(func=mdp.motion_robot_joint_pos, 
+                          params={"command_name": "motion", 
+                                  "interval": 2,
+                                  "frames": 10,})
+        smplx_command = ObsTerm(func=mdp.motion_smplx_pose_body,
+                                params={"command_name": "motion",
+                                        "interval": 2,
+                                        "frames": 10,})
+        keypoints_command = ObsTerm(func=mdp.motion_keypoints_se3,
+                                params={"command_name": "motion",
+                                        "interval": 2,
+                                        "frames": 10,})
+        
+        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"}, noise=Unoise(n_min=-0.05, n_max=0.05))
+        
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel, noise=Unoise(n_min=-0.2, n_max=0.2))
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel, noise=Unoise(n_min=-0.01, n_max=0.01))
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, noise=Unoise(n_min=-0.5, n_max=0.5))
+        actions = ObsTerm(func=mdp.last_action, clip=(-10.0, 10.0)) # NOTE bug actions should be clipped here as well to avoid large values
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = True
+
+    @configclass
+    class PrivilegedCfg(ObsGroup):
+        command = ObsTerm(func=mdp.motion_robot_joint_pos, 
+                          params={"command_name": "motion", 
+                                  "interval": 2,
+                                  "frames": 10,})
+        smplx_command = ObsTerm(func=mdp.motion_smplx_pose_body,
+                                params={"command_name": "motion",
+                                        "interval": 2,
+                                        "frames": 10,})
+        keypoints_command = ObsTerm(func=mdp.motion_keypoints_se3,
+                                params={"command_name": "motion",
+                                        "interval": 2,
+                                        "frames": 10,})
+        
+        motion_anchor_pos_b = ObsTerm(func=mdp.motion_anchor_pos_b, params={"command_name": "motion"})
+        motion_anchor_ori_b = ObsTerm(func=mdp.motion_anchor_ori_b, params={"command_name": "motion"})
+        body_pos = ObsTerm(func=mdp.robot_body_pos_b, params={"command_name": "motion"})
+        body_ori = ObsTerm(func=mdp.robot_body_ori_b, params={"command_name": "motion"})
+        
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
+        base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
+        projected_gravity = ObsTerm(func=mdp.projected_gravity)
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        actions = ObsTerm(func=mdp.last_action, clip=(-10.0, 10.0)) # NOTE bug actions should be clipped here as well to avoid large values
+
+    # observation groups
+    policy: PolicyCfg = PolicyCfg()
+    critic: PrivilegedCfg = PrivilegedCfg()
 
 @configclass
 class EventCfg:
@@ -187,6 +296,49 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="torso_link"),
             "com_range": {"x": (-0.025, 0.025), "y": (-0.05, 0.05), "z": (-0.05, 0.05)},
+        },
+    )
+
+    # interval
+    push_robot = EventTerm(
+        func=mdp.push_by_setting_velocity,
+        mode="interval",
+        interval_range_s=(1.0, 3.0),
+        params={"velocity_range": VELOCITY_RANGE},
+    )
+    
+class MultiTracking_EventCfg:
+    """Configuration for events."""
+
+    # startup
+    physics_material = EventTerm(
+        func=mdp.randomize_rigid_body_material,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+            "static_friction_range": (0.3, 1.6),
+            "dynamic_friction_range": (0.3, 1.2),
+            "restitution_range": (0.0, 0.5),
+            "num_buckets": 64,
+        },
+    )
+
+    add_joint_default_pos = EventTerm(
+        func=mdp.randomize_joint_default_pos,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=[".*"]),
+            "pos_distribution_params": (-0.01, 0.01),
+            "operation": "add",
+        },
+    )
+
+    base_com = EventTerm(
+        func=mdp.randomize_rigid_body_com,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="torso_link"),
+            "com_range": {"x": (-0.075, 0.075), "y": (-0.1, 0.1), "z": (-0.1, 0.1)},
         },
     )
 
@@ -281,6 +433,19 @@ class TerminationsCfg:
         },
     )
 
+@configclass
+class MultiTracking_TerminationsCfg:
+    """Termination terms for the MDP."""
+
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    anchor_pos = DoneTerm(
+        func=mdp.bad_anchor_pos_z_only,
+        params={"command_name": "motion", "threshold": 0.25},
+    )
+    anchor_ori = DoneTerm(
+        func=mdp.bad_anchor_ori,
+        params={"asset_cfg": SceneEntityCfg("robot"), "command_name": "motion", "threshold": 0.8},
+    )
 
 @configclass
 class CurriculumCfg:
@@ -324,3 +489,20 @@ class TrackingEnvCfg(ManagerBasedRLEnvCfg):
         self.viewer.eye = (1.5, 1.5, 1.5)
         self.viewer.origin_type = "asset_root"
         self.viewer.asset_name = "robot"
+
+@configclass
+class MultiTracking_TrackingEnvCfg(TrackingEnvCfg):
+    """Configuration for the locomotion multi-motion-tracking environment."""
+    
+    commands: MultiTracking_CommandsCfg = MultiTracking_CommandsCfg()
+    terminations: MultiTracking_TerminationsCfg = MultiTracking_TerminationsCfg()
+    events: MultiTracking_EventCfg = MultiTracking_EventCfg()
+    
+    
+@configclass
+class GAEMimic_TrackingEnvCfg(MultiTracking_TrackingEnvCfg):
+    """Configuration for the locomotion multi-motion-tracking environment with GAE-Mimic observations."""
+    
+    commands: GAEMimic_CommandsCfg = GAEMimic_CommandsCfg()
+    observations: GAEMimic_ObservationsCfg = GAEMimic_ObservationsCfg()
+    
