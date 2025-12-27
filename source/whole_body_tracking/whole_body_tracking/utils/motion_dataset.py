@@ -6,13 +6,12 @@ from NPZ files with support for quantity-based sampling and train/val split.
 
 import os
 from pathlib import Path
-from typing import Any, Literal, Union
+from typing import Any, Literal, Union, List, Dict
 
 import numpy as np
 import torch
 import yaml
 from torch.utils.data import Dataset
-
 
 class Motion_Dataset(Dataset):
     """PyTorch Dataset for loading motion data from NPZ files.
@@ -287,89 +286,82 @@ class Motion_Dataset(Dataset):
             "quantity_distribution": self._get_quantity_stats(),
         }
 
+class Unify_Motion_Dataset(Motion_Dataset):
+    """Dataset that loads extended motion data with SMPL-X and keypoint information.
 
-if __name__ == "__main__":
-    # Example usage and testing
-    import argparse
-    
-    parser = argparse.ArgumentParser(
-        description="Test Motion_Dataset",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Single dataset with single split
-  python motion_dataset.py --dataset_dirs ./datasets/npz_datasets/LAFAN1_Retargeting_Dataset --splits train
-  
-  # Multiple datasets with single splits each
-  python motion_dataset.py --dataset_dirs dataset1 dataset2 --splits train test
-  
-  # Multiple datasets with combined splits (use --splits_combined)
-  python motion_dataset.py --dataset_dirs dataset1 dataset2 --splits train --splits_combined train+walk_subset
-  
-Note: Use '+' to separate multiple splits for a single dataset (e.g., train+walk_subset)
+    Extends Motion_Dataset to access additional keys in NPZ files that have been
+    pre-processed by extend_datasets.py with SMPL-X data and robot keypoint SE3 data.
+
+    Args:
+        dataset_dirs: List of dataset directory paths
+        robot_name: robot folder name
+        splits: List of dataset splits corresponding to each dataset_dir
+    """
+
+    def __init__(
+        self,
+        dataset_dirs: List[str],
+        robot_name: str,
+        splits: List[Union[str, List[str]]],
+    ) -> None:
+        # Simply call parent with same parameters
+        super().__init__(
+            dataset_dirs=dataset_dirs,
+            robot_name=robot_name,
+            splits=splits,
+        )
+        print(f"[Unify_Motion_Dataset] Extended motion dataset loaded with {len(self.npz_paths)} clips")
+
+    def __getitem__(self, idx: int) -> Dict[str, Any]:
+        """Load extended motion data from NPZ file.
+        
+        Overrides parent to expose additional extended keys (smplx_pose_body,
+        robot_keypoints_trans, etc.) when available in the NPZ file.
         """
-    )
-    parser.add_argument(
-        "--dataset_dirs",
-        type=str,
-        nargs="+",
-        default=["./datasets/npz_datasets/LAFAN1_Retargeting_Dataset"],
-        help="Dataset directory paths",
-    )
-    parser.add_argument(
-        "--robot_name",
-        type=str,
-        default="g1",
-        help="Robot name",
-    )
-    parser.add_argument(
-        "--splits",
-        type=str,
-        nargs="+",
-        default=["train"],
-        help="Dataset splits (must match length of dataset_dirs). Use '+' to combine multiple splits (e.g., train+walk_subset)",
-    )
-    args = parser.parse_args()
-    
-    # Parse splits: convert "train+walk_subset" format to ["train", "walk_subset"]
-    parsed_splits = []
-    for split_str in args.splits:
-        if "+" in split_str:
-            # Multiple splits combined
-            parsed_splits.append(split_str.split("+"))
-        else:
-            # Single split
-            parsed_splits.append(split_str)
-    
-    # Validate arguments
-    if len(parsed_splits) != len(args.dataset_dirs):
-        parser.error(f"Number of splits ({len(parsed_splits)}) must match number of dataset_dirs ({len(args.dataset_dirs)})")
-    
-    # Create dataset
-    dataset = Motion_Dataset(
-        dataset_dirs=args.dataset_dirs,
-        robot_name=args.robot_name,
-        splits=parsed_splits,
-    )
-    
-    # Print dataset info
-    print(f"\nDataset size: {len(dataset)}")
-    print("\nDataset statistics:")
-    stats = dataset.get_statistics()
-    for key, value in stats.items():
-        print(f"  {key}: {value}")
-    
-    # Load and display first sample
-    if len(dataset) > 0:
-        print("\nLoading first sample...")
-        sample = dataset[0]
-        print(f"  Motion name: {sample['motion_name']}")
-        print(f"  FPS: {sample['fps']}")
-        print(f"  Length: {sample['length']} frames")
-        print(f"  Duration: {sample['duration']:.2f} seconds")
-        print(f"  Quantity: {sample['quantity']}")
-        print(f"  NPZ path: {sample['npz_path']}")
-        print(f"  Dataset source: {sample['dataset_source']}")
-        print("\n  Motion data shapes:")
-        for key, value in sample['motion'].items():
-            print(f"    {key}: {value.shape}")
+        npz_path = self.npz_paths[idx]
+        
+        # Load motion data
+        data = np.load(npz_path)
+        
+        # Extract standard motion data (same as parent)
+        motion = {
+            "joint_pos": data["joint_pos"],
+            "joint_vel": data["joint_vel"],
+            "body_pos_w": data["body_pos_w"],
+            "body_quat_w": data["body_quat_w"],
+            "body_lin_vel_w": data["body_lin_vel_w"],
+            "body_ang_vel_w": data["body_ang_vel_w"],
+        }
+        
+        # Add extended keys if available
+        extended_keys = [
+            "smplx_pose_body",
+            "smplx_pose_body_global_rot",
+            "robot_keypoints_trans",
+            "robot_keypoints_rot",
+        ]
+        flatten_keys = set(extended_keys)
+        
+        for key in extended_keys:
+            if key in data:
+                arr = data[key]
+                # Flatten last two dimensions for all extended keys
+                if key in flatten_keys and arr.ndim >= 2:
+                    arr = arr.reshape(arr.shape[0], -1)
+                motion[key] = arr
+        
+        fps = int(data["fps"][0])
+        length = motion["joint_pos"].shape[0]
+        duration = length / fps
+        
+        return {
+            "motion": motion,
+            "fps": fps,
+            "length": length,
+            "duration": duration,
+            "npz_path": str(npz_path),
+            "motion_name": self.motion_names[idx],
+            "quantity": self.quantities[idx],
+            "dataset_source": self.dataset_sources[idx],
+        }
+
