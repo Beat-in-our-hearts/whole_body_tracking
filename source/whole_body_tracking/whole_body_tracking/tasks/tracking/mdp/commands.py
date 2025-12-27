@@ -470,6 +470,9 @@ class MultiMotionCommand(CommandTerm):
             dataset=self.dataset,
             body_indexes=self.body_indexes,
             device=self.device,
+            world_size=self.cfg.distributed_world_size,
+            rank=self.cfg.distributed_rank,
+            enable_data_split=self.cfg.distributed_data_split,
         )
 
     @property
@@ -872,6 +875,16 @@ class MultiMotionCommandCfg(CommandTermCfg):
         splits=["train", "val"]  # Use "train" for dataset_dirs[0], "val" for dataset_dirs[1]
         splits=[["train", "walk"], "test"]  # Combine "train"+"walk" for dataset_dirs[0], "test" for dataset_dirs[1]
     """
+
+    # Distributed training configuration
+    distributed_world_size: int = 1
+    """Total number of distributed processes."""
+    
+    distributed_rank: int = 0
+    """Current process rank in distributed training."""
+    
+    distributed_data_split: bool = False
+    """Whether to enable distributed data sharding across ranks."""
 
     # Body configuration
     anchor_body_name: str = MISSING
