@@ -69,6 +69,7 @@ def generate_yaml_config(data_structure, dataset_name, output_path=None):
         dict: YAML configuration dictionary
     """
     config = {"dataset": dataset_name}
+    train_files = {}  # Store all motion files (merged from all splits)
     
     # Generate configuration for each robot_type and split
     for robot_type, splits in sorted(data_structure.items()):
@@ -81,6 +82,13 @@ def generate_yaml_config(data_structure, dataset_name, output_path=None):
             for file_key in files:
                 full_key = f"{split_name}/{file_key}"
                 config[split_name][full_key] = 1
+                
+                # Collect all files from all splits
+                train_files[full_key] = 1
+    
+    # Add all motion files to config
+    if train_files:
+        config["train"] = train_files
     
     # Save to file
     if output_path:
