@@ -54,12 +54,12 @@ class GAEMimic_G1FlatPPORunnerCfg(G1FlatPPORunnerCfg):
         actor_sk_dim=450,  # keypoints state dimension 5x9x10 (5 keypoints, 9 dims per keypoint, 10 frames)
         latent_dim=64,
         activate_signals="smplx", # Use robot signals for zero-shot training
-        robot_encoder_hidden_dims=[1024, 512, 256],
-        human_encoder_hidden_dims=[1024, 512, 256],
-        keypoints_encoder_hidden_dims=[1024, 512, 256],
-        robot_decoder_hidden_dims=[256, 512, 1024],
-        human_decoder_hidden_dims=[256, 512, 1024],
-        keypoints_decoder_hidden_dims=[256, 512, 1024],
+        robot_encoder_hidden_dims=[512, 256, 128],
+        human_encoder_hidden_dims=[512, 256, 128],
+        keypoints_encoder_hidden_dims=[512, 256, 128],
+        robot_decoder_hidden_dims=[128, 256, 512],
+        human_decoder_hidden_dims=[128, 256, 512],
+        keypoints_decoder_hidden_dims=[128, 256, 512],
     )
     algorithm = RslRl_Triple_AE_PPOAlgorithmCfg(
         value_loss_coef=1.0,
@@ -85,6 +85,17 @@ class GAEMimic_G1FlatPPORunnerCfg(G1FlatPPORunnerCfg):
         finetune_keypoints_encoder=False, # not finetune in scratch training
     )
 
+
+@configclass
+class GAEMimic_Large_G1FlatPPORunnerCfg(GAEMimic_G1FlatPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.policy.robot_encoder_hidden_dims = [1024, 512, 256]
+        self.policy.human_encoder_hidden_dims = [1024, 512, 256]
+        self.policy.keypoints_encoder_hidden_dims = [1024, 512, 256]
+        self.policy.robot_decoder_hidden_dims = [256, 512, 1024]
+        self.policy.human_decoder_hidden_dims = [256, 512, 1024]
+        self.policy.keypoints_decoder_hidden_dims = [256, 512, 1024]
 
 @configclass
 class GAEMimic_G1FlatPPORunnerCfg_Robot(GAEMimic_G1FlatPPORunnerCfg):
