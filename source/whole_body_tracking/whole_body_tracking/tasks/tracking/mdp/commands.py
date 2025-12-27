@@ -345,19 +345,6 @@ class MotionCommand(CommandTerm):
             self.current_body_visualizers[i].visualize(self.robot_body_pos_w[:, i], self.robot_body_quat_w[:, i])
             self.goal_body_visualizers[i].visualize(self.body_pos_relative_w[:, i], self.body_quat_relative_w[:, i])
 
-
-    def motion_robot_joint_pos_vel(self, interval: int, frames: int):
-        """
-        get `frames=M` future frame state, every frame has `interval=T`
-        """
-        # [N, 1] -> [N, M] broadcasting
-        offsets = interval * torch.arange(frames, dtype=self.time_steps.dtype, device=self.time_steps.device)
-        self.future_time_steps = self.time_steps.unsqueeze(-1) + offsets
-        # clamp not big than the time_step_total 
-        self.future_time_steps = torch.clamp(self.future_time_steps, max=self.motion.time_step_total-1)
-        
-        return torch.cat([self.motion.joint_pos[self.future_time_steps], 
-                          self.motion.joint_vel[self.future_time_steps]], dim=-1)
         
 @configclass
 class MotionCommandCfg(CommandTermCfg):
@@ -797,57 +784,6 @@ class MultiMotionCommand(CommandTerm):
         for i in range(len(self.cfg.body_names)):
             self.current_body_visualizers[i].visualize(self.robot_body_pos_w[:, i], self.robot_body_quat_w[:, i])
             self.goal_body_visualizers[i].visualize(self.body_pos_relative_w[:, i], self.body_quat_relative_w[:, i])
-
-    def motion_robot_joint_pos_vel(self, interval: int, frames: int):
-        """Get future frame states from multiple motions.
-        
-        This method computes `frames=M` future frame states where each frame is 
-        separated by `interval=T` timesteps. It handles multi-motion buffer indexing
-        where different environments may be at different motions.
-        
-        The function leverages global_time_steps which directly indexes into the 
-        concatenated multi-motion buffer, abstracting away motion_id and local time_steps
-        for efficient tensor operations.
-        
-        Args:
-            interval: Number of timesteps between sampled frames (stride/interval).
-            frames: Number of future frames to sample (sequence length).
-        
-        Returns:
-            Tensor of shape (num_envs, frames, joint_dim*2) containing concatenated
-            future joint positions and velocities across all environments and motions.
-            
-        Shape breakdown:
-            - global_time_steps: [num_envs]
-            - offsets: [frames]
-            - future_global_time_steps: [num_envs, frames] (broadcasting)
-            - joint_pos/vel: [total_timesteps, joint_dim]
-            - output: [num_envs, frames, joint_dim*2]
-        """
-        # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
-        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
-        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
-        
-        # Clamp to max valid global timestep for each motion
-        # Each environment may be at a different motion, so we need per-motion clamping
-        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
-        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
-        
-        # Index into motion_buffer using global timesteps (abstracted away motion_id/time_steps)
-        return torch.cat([self.dataloader.motion_buffer.joint_pos[self.future_global_time_steps], 
-                          self.dataloader.motion_buffer.joint_vel[self.future_global_time_steps]], dim=-1)
-        
-    def motion_robot_joint_pos(self, interval: int, frames: int):
-        # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
-        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
-        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
-        
-        # Clamp to max valid global timestep for each motion
-        # Each environment may be at a different motion, so we need per-motion clamping
-        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
-        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
-        
-        return self.dataloader.motion_buffer.joint_pos[self.future_global_time_steps]
             
 @configclass
 class MultiMotionCommandCfg(CommandTermCfg):
@@ -931,8 +867,8 @@ class MultiMotionCommandCfg(CommandTermCfg):
     body_visualizer_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
 
 
-class SONIC_MultiMotionCommand(MultiMotionCommand):
-    """SONIC-specific multi-motion command supporting SMPL-X data access.
+class GAEMimic_MultiMotionCommand(MultiMotionCommand):
+    """GAEMimic-specific multi-motion command supporting SMPL-X data access.
     
     Extends MultiMotionCommand to use Unify_Motion_Dataset and Unify_Motion_Dataloader,
     enabling access to both robot and SMPL-X motion data for multi-modal motion tracking.
@@ -943,13 +879,13 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
     - Provides smplx_pose_body property for accessing SMPL-X pose data
     """
     
-    cfg: SONIC_MultiMotionCommandCfg
+    cfg: GAEMimic_MultiMotionCommandCfg
     
-    def __init__(self, cfg: SONIC_MultiMotionCommandCfg, env: ManagerBasedRLEnv):
-        """Initialize SONIC command with unified dataset support.
+    def __init__(self, cfg: GAEMimic_MultiMotionCommandCfg, env: ManagerBasedRLEnv):
+        """Initialize GAEMimic command with unified dataset support.
         
         Args:
-            cfg: SONIC_MultiMotionCommandCfg configuration
+            cfg: GAEMimic_MultiMotionCommandCfg configuration
             env: ManagerBasedRLEnv environment
         """
         # Call parent initialization first to set up robot and environment properties
@@ -962,7 +898,7 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
         extended NPZ files (already processed by extend_datasets.py) containing
         SMPL-X pose body data along with standard robot motion data.
         """
-        print(f"[SONIC_MultiMotionCommand] Loading unified dataset from: {self.cfg.dataset_dirs}")
+        print(f"[GAEMimic_MultiMotionCommand] Loading unified dataset from: {self.cfg.dataset_dirs}")
         
         # Create unified dataset with extended keys (SMPL-X data)
         self.dataset = Unify_Motion_Dataset(
@@ -980,74 +916,43 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
         
     @property
     def smplx_pose_body(self) -> torch.Tensor:
-        """Get SMPL-X body pose for current timesteps.
-        
-        Returns SMPL-X body pose data for all environments at their current global timesteps.
-        Data is pre-flattened from (N, 21, 6) to (N, 126) in dataset layer.
-        
-        Returns:
-            Tensor[num_envs, 126] containing flattened SMPL-X body pose data where
-            each joint is represented as 6D rotation (21 joints * 6 values per joint).
-            
-        Example:
-            >>> pose_body = command.smplx_pose_body  # [num_envs, 126]
-        """
         return self.dataloader.motion_buffer.smplx_pose_body[self.global_time_steps]
     
     @property
     def robot_keypoints_trans(self) -> torch.Tensor:
-        """Get robot keypoints translation for current timesteps.
-        
-        Returns robot keypoints SE3 translation data for all environments at their current global timesteps.
-        Data is pre-flattened from (N, 5, 3) to (N, 15) in dataset layer.
-        
-        Returns:
-            Tensor[num_envs, 15] containing flattened robot keypoints translation data where
-            each of 5 keypoints has 3 translation values (5 keypoints * 3 values per keypoint).
-            
-        Example:
-            >>> keypoints_trans = command.robot_keypoints_trans  # [num_envs, 15]
-        """
         return self.dataloader.motion_buffer.robot_keypoints_trans[self.global_time_steps]
     
     @property
     def robot_keypoints_rot(self) -> torch.Tensor:
-        """Get robot keypoints rotation for current timesteps.
-        
-        Returns robot keypoints SE3 rotation data for all environments at their current global timesteps.
-        Data is pre-flattened from (N, 5, 6) to (N, 30) in dataset layer as 6D rotations.
-        
-        Returns:
-            Tensor[num_envs, 30] containing flattened robot keypoints rotation data where
-            each of 5 keypoints is represented as 6D rotation (5 keypoints * 6 values per keypoint).
-            
-        Example:
-            >>> keypoints_rot = command.robot_keypoints_rot  # [num_envs, 30]
-        """
         return self.dataloader.motion_buffer.robot_keypoints_rot[self.global_time_steps]
 
+    def motion_robot_joint_pos_vel(self, interval: int, frames: int):
+        # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
+        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
+        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
+        
+        # Clamp to max valid global timestep for each motion
+        # Each environment may be at a different motion, so we need per-motion clamping
+        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
+        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
+        
+        # Index into motion_buffer using global timesteps (abstracted away motion_id/time_steps)
+        return torch.cat([self.dataloader.motion_buffer.joint_pos[self.future_global_time_steps], 
+                          self.dataloader.motion_buffer.joint_vel[self.future_global_time_steps]], dim=-1)
+        
+    def motion_robot_joint_pos(self, interval: int, frames: int):
+        # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
+        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
+        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
+        
+        # Clamp to max valid global timestep for each motion
+        # Each environment may be at a different motion, so we need per-motion clamping
+        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
+        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
+        
+        return self.dataloader.motion_buffer.joint_pos[self.future_global_time_steps]
+    
     def motion_smplx_pose_body(self, interval: int, frames: int):
-        """Get future SMPL-X pose body data from multiple motions.
-        
-        This method computes `frames=M` future SMPL-X pose body states where each frame is 
-        separated by `interval=T` timesteps. It handles multi-motion buffer indexing where 
-        different environments may be at different motions.
-        
-        Args:
-            interval: Number of timesteps between sampled frames (stride/interval).
-            frames: Number of future frames to sample (sequence length).
-        
-        Returns:
-            Tensor of shape (num_envs, frames, pose_body_dim) containing concatenated
-            future SMPL-X pose body data across all environments and motions.
-            
-        Shape breakdown:
-            - global_time_steps: [num_envs]
-            - offsets: [frames]
-            - future_global_time_steps: [num_envs, frames] (broadcasting)
-            - smplx_pose_body: [total_timesteps, pose_body_dim]
-            - output: [num_envs, frames, pose_body_dim]
-        """
         # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
         offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
         self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
@@ -1060,28 +965,7 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
         # Index into motion_buffer using global timesteps (abstracted away motion_id/time_steps)
         return self.dataloader.motion_buffer.smplx_pose_body[self.future_global_time_steps]
     
-    def motion_robot_keypoints_trans(self, interval: int, frames: int):
-        """Get future robot keypoints translation data from multiple motions.
-        
-        This method computes `frames=M` future robot keypoints translation states where each frame is 
-        separated by `interval=T` timesteps. It handles multi-motion buffer indexing where 
-        different environments may be at different motions.
-        
-        Args:
-            interval: Number of timesteps between sampled frames (stride/interval).
-            frames: Number of future frames to sample (sequence length).
-        
-        Returns:
-            Tensor of shape (num_envs, frames, keypoints_trans_dim) containing concatenated
-            future robot keypoints translation data across all environments and motions.
-            
-        Shape breakdown:
-            - global_time_steps: [num_envs]
-            - offsets: [frames]
-            - future_global_time_steps: [num_envs, frames] (broadcasting)
-            - robot_keypoints_trans: [total_timesteps, keypoints_trans_dim]
-            - output: [num_envs, frames, keypoints_trans_dim]
-        """
+    def motion_keypoints_trans(self, interval: int, frames: int):
         # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
         offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
         self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
@@ -1094,28 +978,7 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
         # Index into motion_buffer using global timesteps (abstracted away motion_id/time_steps)
         return self.dataloader.motion_buffer.robot_keypoints_trans[self.future_global_time_steps]
     
-    def motion_robot_keypoints_rot(self, interval: int, frames: int):
-        """Get future robot keypoints rotation data from multiple motions.
-        
-        This method computes `frames=M` future robot keypoints rotation states where each frame is 
-        separated by `interval=T` timesteps. It handles multi-motion buffer indexing where 
-        different environments may be at different motions.
-        
-        Args:
-            interval: Number of timesteps between sampled frames (stride/interval).
-            frames: Number of future frames to sample (sequence length).
-        
-        Returns:
-            Tensor of shape (num_envs, frames, keypoints_rot_dim) containing concatenated
-            future robot keypoints rotation data across all environments and motions.
-            
-        Shape breakdown:
-            - global_time_steps: [num_envs]
-            - offsets: [frames]
-            - future_global_time_steps: [num_envs, frames] (broadcasting)
-            - robot_keypoints_rot: [total_timesteps, keypoints_rot_dim]
-            - output: [num_envs, frames, keypoints_rot_dim]
-        """
+    def motion_keypoints_rot(self, interval: int, frames: int):
         # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
         offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
         self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
@@ -1128,30 +991,7 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
         # Index into motion_buffer using global timesteps (abstracted away motion_id/time_steps)
         return self.dataloader.motion_buffer.robot_keypoints_rot[self.future_global_time_steps]
 
-
-    def motion_robot_keypoints(self, interval: int, frames: int):
-        """Get future robot keypoints SE3 data from multiple motions.
-        
-        This method computes `frames=M` future robot keypoints SE3 states where each frame is 
-        separated by `interval=T` timesteps. It handles multi-motion buffer indexing where 
-        different environments may be at different motions.
-        
-        Args:
-            interval: Number of timesteps between sampled frames (stride/interval).
-            frames: Number of future frames to sample (sequence length).
-        
-        Returns:
-            Tensor of shape (num_envs, frames, keypoints_dim) containing concatenated
-            future robot keypoints SE3 data across all environments and motions.
-            
-        Shape breakdown:
-            - global_time_steps: [num_envs]
-            - offsets: [frames]
-            - future_global_time_steps: [num_envs, frames] (broadcasting)
-            - robot_keypoints_trans: [total_timesteps, keypoints_trans_dim]
-            - robot_keypoints_rot: [total_timesteps, keypoints_rot_dim]
-            - output: [num_envs, frames, keypoints_dim]
-        """
+    def motion_keypoints_se3(self, interval: int, frames: int):
         # [num_envs, 1] -> [num_envs, frames] via broadcasting with offsets
         offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
         self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
@@ -1167,278 +1007,9 @@ class SONIC_MultiMotionCommand(MultiMotionCommand):
             self.dataloader.motion_buffer.robot_keypoints_rot[self.future_global_time_steps]
         ], dim=-1)
         return keypoints
-    
-    
-    def motion_dual_ae_cmd(self, interval: int, frames: int):
-        """ Get robot amd smplx command"""
-        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
-        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
-        
-        # Clamp to max valid global timestep for each motion
-        # Each environment may be at a different motion, so we need per-motion clamping
-        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
-        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
-        
-        robot_cmd = self.dataloader.motion_buffer.joint_pos[self.future_global_time_steps]
-        smplx_cmd = self.dataloader.motion_buffer.smplx_pose_body[self.future_global_time_steps]
-        
-        return torch.cat([robot_cmd, smplx_cmd], dim=-1)
-    
-    def motion_triple_ae_cmd(self, interval: int, frames: int):
-        """ Get robot, smplx, and keypoints command"""
-        offsets = interval * torch.arange(frames, dtype=self.global_time_steps.dtype, device=self.global_time_steps.device)
-        self.future_global_time_steps = self.global_time_steps.unsqueeze(-1) + offsets
-        
-        # Clamp to max valid global timestep for each motion
-        # Each environment may be at a different motion, so we need per-motion clamping
-        motion_end_steps = self.dataloader.motion_offsets[self.motion_ids] + self.dataloader.motion_lengths[self.motion_ids] - 1
-        self.future_global_time_steps = torch.clamp(self.future_global_time_steps, max=motion_end_steps.unsqueeze(-1))
-        
-        robot_cmd = self.dataloader.motion_buffer.joint_pos[self.future_global_time_steps]
-        smplx_cmd = self.dataloader.motion_buffer.smplx_pose_body[self.future_global_time_steps]
-        keypoints_cmd = torch.cat([
-            self.dataloader.motion_buffer.robot_keypoints_trans[self.future_global_time_steps],
-            self.dataloader.motion_buffer.robot_keypoints_rot[self.future_global_time_steps]
-        ], dim=-1)
-        return torch.cat([robot_cmd, smplx_cmd, keypoints_cmd], dim=-1)
         
 @configclass
-class SONIC_MultiMotionCommandCfg(MultiMotionCommandCfg):
-    """Configuration for SONIC multi-motion command with SMPL-X support."""
-    class_type: type = SONIC_MultiMotionCommand
-
-
-class EvalMultiMotionCommand(MultiMotionCommand):
-    """Evaluation-specific command with attempt-based weighted sampling.
-    
-    This class extends MultiMotionCommand for systematic evaluation where:
-    1. Sampling weights prioritize motions needing more evaluation attempts
-    2. All resampling resets to timestep 0 (always start from motion beginning)
-    3. Tracks success/failure statistics for each motion
-    4. Automatically balances evaluation progress across all motions
-    """
-    
-    cfg: MultiMotionCommandCfg  # Reuse same config, no separate EvalMultiMotionCommandCfg
-    
-    def __init__(self, cfg: MultiMotionCommandCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        
-        # ============ Evaluation-specific tracking ============
-        self.num_motions = len(self.dataset)
-        
-        # Track evaluation progress for each motion
-        # attempt_count: motions that have been sampled/assigned (including in-progress)
-        # completed_count: motions that have finished (success or failure)
-        self.eval_motion_attempt_count = torch.zeros(self.num_motions, dtype=torch.long, device=self.device)
-        self.eval_motion_completed_count = torch.zeros(self.num_motions, dtype=torch.long, device=self.device)
-        self.eval_motion_success_count = torch.zeros(self.num_motions, dtype=torch.long, device=self.device)
-        self.eval_motion_failure_count = torch.zeros(self.num_motions, dtype=torch.long, device=self.device)
-        self.eval_motion_failure_steps = torch.zeros(self.num_motions, dtype=torch.float, device=self.device)
-
-        print(f"[EvalMultiMotionCommand] Initialized for evaluation")
-        print(f"  Number of motions: {self.num_motions}")
-        print(f"  Target attempts per motion: {cfg.eval_target_attempts}")
-        print(f"  Total environments: {self.num_envs}")
-    
-    def _adaptive_sampling(self, env_ids: Sequence[int]):
-        """Evaluation-specific adaptive sampling.
-        
-        Unlike training mode (which samples global bins), evaluation mode:
-        1. Tracks success/failure statistics for completed attempts
-        2. Samples motions directly based on remaining attempts (not bins)
-        3. Always resets time_steps to 0 (start from motion beginning)
-        4. Increments attempt count AFTER sampling new motion
-        
-        This ensures balanced evaluation coverage across all motions.
-        """
-        env_ids_tensor = torch.tensor(env_ids, dtype=torch.long, device=self.device) \
-            if not isinstance(env_ids, torch.Tensor) else env_ids
-        num_envs = len(env_ids)
-        
-        # ============ Track success/failure statistics BEFORE resampling ============
-        # Get motion properties for all environments being resampled
-        motion_ids_batch = self.motion_ids[env_ids_tensor]
-        current_timesteps_batch = self.time_steps[env_ids_tensor]
-        motion_lengths_batch = self.dataloader.motion_lengths[motion_ids_batch]
-        
-        # Check termination reasons (vectorized)
-        is_failed_batch = self._env.termination_manager.terminated[env_ids_tensor]
-        is_motion_complete_batch = current_timesteps_batch >= (motion_lengths_batch - 1)
-
-        # CRITICAL: Only count statistics for attempts that have actually started
-        # This avoids false positives at initialization
-        has_started_mask = torch.ones(len(env_ids_tensor), dtype=torch.bool, device=self.device) if self._has_started else torch.zeros(len(env_ids_tensor), dtype=torch.bool, device=self.device)
-
-        # Separate failed and completed environments
-        failed_mask = has_started_mask & is_failed_batch & ~is_motion_complete_batch
-        completed_mask = has_started_mask & is_motion_complete_batch & ~is_failed_batch
-        
-        # Update failure statistics and increment completed count
-        if failed_mask.any():
-            failed_motion_ids = motion_ids_batch[failed_mask]
-            failed_timesteps = current_timesteps_batch[failed_mask]
-            
-            self.eval_motion_failure_count += torch.bincount(
-                failed_motion_ids, minlength=self.num_motions
-            )
-            self.eval_motion_completed_count += torch.bincount(
-                failed_motion_ids, minlength=self.num_motions
-            )
-            # Track steps reached before failure for completion rate calculation
-            self.eval_motion_failure_steps += torch.bincount(
-                failed_motion_ids, weights=failed_timesteps.float(), minlength=self.num_motions
-            )
-        
-        # Update success statistics and increment completed count
-        if completed_mask.any():
-            completed_motion_ids = motion_ids_batch[completed_mask]
-            
-            self.eval_motion_success_count += torch.bincount(
-                completed_motion_ids, minlength=self.num_motions
-            )
-            self.eval_motion_completed_count += torch.bincount(
-                completed_motion_ids, minlength=self.num_motions
-            )
-        
-        # ============ Track bin failures for global bins (optional, for analysis) ============
-        episode_failed = self._env.termination_manager.terminated[env_ids_tensor]
-        # Only track bin failures for episodes that have actually started
-        episode_failed = episode_failed & self._has_started
-        
-        if torch.any(episode_failed):
-            failed_envs = env_ids_tensor[episode_failed]
-            failed_global_time_steps = self.global_time_steps[failed_envs]
-            failed_bins = (failed_global_time_steps.float() / self.bin_size).long()
-            failed_bins = torch.clamp(failed_bins, 0, self.bin_count - 1)
-            
-            self._current_bin_failed += torch.bincount(
-                failed_bins, minlength=self.bin_count
-            ).float()
-        
-        # ============ Sample new motions using remaining-attempts weights ============
-        # Compute weights: prioritize motions needing more COMPLETED attempts
-        # Use completed_count to ensure we keep sampling until motions are actually finished
-        remaining_attempts = self.cfg.eval_target_attempts - self.eval_motion_attempt_count
-        weights = remaining_attempts.float() + 1e-4  # Add epsilon to avoid zero weights
-        weights = torch.clamp(weights, min=1e-4)
-        
-        # Normalize weights for multinomial sampling
-        weights_normalized = weights / weights.sum()
-        
-        # Sample motion IDs based on remaining completed attempts
-        sampled_motion_ids = torch.multinomial(weights_normalized, num_envs, replacement=True)
-        
-        # ============ CRITICAL: Increment attempt count AFTER sampling ============
-        self.eval_motion_attempt_count += torch.bincount(
-            sampled_motion_ids, minlength=self.num_motions
-        )
-        
-        self.motion_ids[env_ids_tensor] = sampled_motion_ids
-        
-        # ============ Always reset timesteps to 0 ============
-        # In evaluation, we always start from the beginning of the motion
-        self.time_steps[env_ids_tensor] = 0
-        
-        # Update global_time_steps based on motion_offsets
-        self.global_time_steps[env_ids_tensor] = self.dataloader.motion_offsets[sampled_motion_ids]
-    
-    def check_eval_complete(self) -> bool:
-        """Check if all motions have reached target evaluation attempts and completed.
-        
-        Returns:
-            True if all motions have completed at least eval_target_attempts times
-        """
-        return torch.all(self.eval_motion_completed_count >= self.cfg.eval_target_attempts).item()
-    
-    def get_incomplete_motions(self) -> torch.Tensor:
-        """Get motion IDs that haven't reached target completed attempts.
-        
-        Returns:
-            Tensor of motion IDs that need more completed evaluation attempts
-        """
-        return torch.where(self.eval_motion_completed_count < self.cfg.eval_target_attempts)[0]
-    
-    def get_eval_results(self) -> dict:
-        """Get evaluation results for all motions.
-        
-        Returns:
-            Dictionary mapping motion_id to evaluation statistics:
-            {
-                motion_id: {
-                    'motion_name': str,
-                    'completed': int,
-                    'successes': int,
-                    'failures': int,
-                    'success_rate': float,
-                    'completion_rate': float,  # Average completion percentage (0-1)
-                    'avg_steps': float,
-                    'motion_length': int,
-                }
-            }
-        """
-        results = {}
-
-        for motion_id in range(self.num_motions):
-            attempts = self.eval_motion_attempt_count[motion_id].item()
-            completed = self.eval_motion_completed_count[motion_id].item()
-            successes = self.eval_motion_success_count[motion_id].item()
-            failures = self.eval_motion_failure_count[motion_id].item()
-            failure_steps = self.eval_motion_failure_steps[motion_id].item()
-            motion_length = self.dataloader.motion_lengths[motion_id].item()
-            
-            success_rate = successes / completed if completed > 0 else 0.0
-            
-            # Completion rate: average percentage of motion completed across all attempts
-            # For successes: they completed full motion_length
-            # For failures: steps reached before failure
-            total_completed_steps = successes * motion_length + failure_steps
-            completion_rate = total_completed_steps / (completed * motion_length) if completed > 0 else 0.0
-            
-            motion_info = self.dataset[motion_id]
-            
-            results[motion_id] = {
-                'motion_name': motion_info['motion_name'],
-                'completed': completed,
-                'successes': successes,
-                'failures': failures,
-                'success_rate': success_rate,
-                'completion_rate': completion_rate,
-                'motion_length': motion_length,
-                'quantity': motion_info['quantity'],
-            }
-        
-        return results
-    
-    def print_progress(self):
-        """Print evaluation progress to console."""
-        incomplete = self.get_incomplete_motions()
-        num_complete = self.num_motions - len(incomplete)
-        
-        # Attempt statistics (including in-progress)
-        min_attempts = self.eval_motion_attempt_count.min().item()
-        max_attempts = self.eval_motion_attempt_count.max().item()
-        avg_attempts = self.eval_motion_attempt_count.float().mean().item()
-        total_attempts = self.eval_motion_attempt_count.sum().item()
-        
-        # Completed statistics
-        min_completed = self.eval_motion_completed_count.min().item()
-        max_completed = self.eval_motion_completed_count.max().item()
-        avg_completed = self.eval_motion_completed_count.float().mean().item()
-        total_completed = self.eval_motion_completed_count.sum().item()
-        
-        # In-progress count
-        total_in_progress = total_attempts - total_completed
-        
-        # Current time_steps statistics across all environments
-        min_timesteps = self.time_steps.min().item()
-        max_timesteps = self.time_steps.max().item()
-        avg_timesteps = self.time_steps.float().mean().item()
-
-        print(f"[Eval Progress] {num_complete}/{self.num_motions} motions complete")
-        print(f"  Attempts (assigned): min={min_attempts}, max={max_attempts}, avg={avg_attempts:.1f}, total={total_attempts}")
-        print(f"  Completed (finished): min={min_completed}, max={max_completed}, avg={avg_completed:.1f}, total={total_completed}")
-        print(f"  In-progress: {total_in_progress}")
-        print(f"  Current time_steps: min={min_timesteps}, max={max_timesteps}, avg={avg_timesteps:.1f}")
-        print(f"  Incomplete motions: {len(incomplete)}")
-
+class GAEMimic_MultiMotionCommandCfg(MultiMotionCommandCfg):
+    """Configuration for GAEMimic multi-motion command with SMPL-X support."""
+    class_type: type = GAEMimic_MultiMotionCommand
 

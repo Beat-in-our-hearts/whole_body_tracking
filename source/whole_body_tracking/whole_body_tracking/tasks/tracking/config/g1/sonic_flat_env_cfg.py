@@ -6,7 +6,7 @@ from whole_body_tracking.robots.g1 import G1_ACTION_SCALE, G1_CYLINDER_CFG
 from whole_body_tracking.tasks import EXTEMDED_DATASETS_DIR
 
 from whole_body_tracking.tasks.tracking.sonic_multi_tracking_env_cfg import TrackingEnvCfg as SONIC_MultiTrackingEnvCfg
-from whole_body_tracking.tasks.tracking.mdp import SONIC_MultiMotionCommandCfg
+from whole_body_tracking.tasks.tracking.mdp import GAEMimic_MultiMotionCommandCfg
 from whole_body_tracking.tasks.tracking.sonic_multi_tracking_env_cfg import VELOCITY_RANGE, ObservationsCfgV2, ObservationsCfgV3
 
 #######################################
@@ -27,7 +27,7 @@ class SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX(SONIC_MultiTrackingEnvCfg):
         # Dataset paths (must be pre-processed by extend_datasets.py to include SMPL-X extended keys)
         extended_dataset_path = os.path.join(EXTEMDED_DATASETS_DIR, "lafan1_dataset")
         
-        self.commands.motion = SONIC_MultiMotionCommandCfg(
+        self.commands.motion = GAEMimic_MultiMotionCommandCfg(
             asset_name="robot",
             resampling_time_range=(1.0e9, 1.0e9),
             debug_vis=True,
@@ -84,7 +84,7 @@ class SONIC_G1FlatMultiTrackingEnvCfg_wSMPLX_wKeypoints(SONIC_MultiTrackingEnvCf
         # Dataset paths (must be pre-processed by extend_datasets.py to include SMPL-X extended keys)
         extended_dataset_path = os.path.join(EXTEMDED_DATASETS_DIR, "lafan1_dataset")
         
-        self.commands.motion = SONIC_MultiMotionCommandCfg(
+        self.commands.motion = GAEMimic_MultiMotionCommandCfg(
             asset_name="robot",
             resampling_time_range=(1.0e9, 1.0e9),
             debug_vis=True,

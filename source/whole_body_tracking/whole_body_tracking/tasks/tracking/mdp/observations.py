@@ -120,7 +120,7 @@ def motion_keypoints_se3(
     ) -> torch.Tensor:
     command = env.command_manager.get_term(command_name)
 
-    return command.motion_robot_keypoints(interval, frames).view(env.num_envs, -1)
+    return command.motion_keypoints_se3(interval, frames).view(env.num_envs, -1)
 
 
 def motion_dual_ae_cmd(
