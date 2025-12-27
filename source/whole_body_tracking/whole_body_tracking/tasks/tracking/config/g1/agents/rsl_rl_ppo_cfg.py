@@ -408,7 +408,7 @@ class SONIC_Multi_G1Flat_TripleAE_Scratch_Robot_PPORunnerCfg(G1FlatPPORunnerCfg)
 
 @configclass
 class SONIC_Multi_G1Flat_TripleAE_Scratch_SMPLX_PPORunnerCfg(SONIC_Multi_G1Flat_TripleAE_Scratch_Robot_PPORunnerCfg):
-    max_iterations = 30_000
+    max_iterations = 200_000
     experiment_name = "sonic_multi_g1_flat_tripleae_scratch_smplx"
     
     def __post_init__(self):
