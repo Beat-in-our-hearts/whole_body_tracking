@@ -551,8 +551,8 @@ def attach_onnx_metadata(env: ManagerBasedRLEnv, run_path: str, path: str, filen
         "observation_history_lengths": observation_history_lengths,
         "observation_dims": observation_dims,  # Add to metadata
         "action_scale": env.action_manager.get_term("joint_pos")._scale[0].cpu().tolist(),
-        "motion_anchor_body_name": env.command_manager.get_term("motion").cfg.anchor_body_name,
-        "motion_key_body_names": env.command_manager.get_term("motion").cfg.body_names,
+        "anchor_body_name": env.command_manager.get_term("motion").cfg.anchor_body_name,
+        "tracking_body_names": env.command_manager.get_term("motion").cfg.body_names,
     }
 
     model = onnx.load(onnx_path)
