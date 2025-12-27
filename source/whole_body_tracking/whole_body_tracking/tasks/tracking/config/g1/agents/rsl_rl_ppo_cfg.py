@@ -84,3 +84,22 @@ class GAEMimic_G1FlatPPORunnerCfg(G1FlatPPORunnerCfg):
         finetune_robot_encoder=False, # not finetune in scratch training
         finetune_keypoints_encoder=False, # not finetune in scratch training
     )
+
+
+@configclass
+class GAEMimic_G1FlatPPORunnerCfg_Robot(GAEMimic_G1FlatPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.policy.activate_signals = "robot"
+        
+@configclass
+class GAEMimic_G1FlatPPORunnerCfg_Human(GAEMimic_G1FlatPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.policy.activate_signals = "human"
+        
+@configclass
+class GAEMimic_G1FlatPPORunnerCfg_Keypoints(GAEMimic_G1FlatPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.policy.activate_signals = "keypoints"

@@ -7,6 +7,9 @@ import os
 
 @configclass
 class G1FlatEnvCfg(TrackingEnvCfg):
+    
+    task_type: str = "single_motion"
+    
     def __post_init__(self):
         super().__post_init__()
 
@@ -32,6 +35,9 @@ class G1FlatEnvCfg(TrackingEnvCfg):
 
 @configclass
 class MultiTracking_G1FlatEnvCfg(MultiTracking_TrackingEnvCfg):
+    
+    task_type: str = "multi_motion"
+    
     def __post_init__(self):
         super().__post_init__()
 
@@ -63,9 +69,8 @@ class MultiTracking_G1FlatEnvCfg(MultiTracking_TrackingEnvCfg):
         
 @configclass
 class GAEMimic_G1FlatEnvCfg(GAEMimic_TrackingEnvCfg):
-        
-    GAEMimic_FLAG: bool = True
-    GAEMimic_Keypoints_Export: bool = True
+    
+    task_type: str = "gae_mimic"
     
     def __post_init__(self):
         super().__post_init__()

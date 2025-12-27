@@ -208,11 +208,11 @@ class GAEMimic_ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
-        command = ObsTerm(func=mdp.motion_robot_joint_pos, 
+        robot_command = ObsTerm(func=mdp.motion_robot_joint_pos, 
                           params={"command_name": "motion", 
                                   "interval": 2,
                                   "frames": 10,})
-        smplx_command = ObsTerm(func=mdp.motion_smplx_pose_body,
+        human_command = ObsTerm(func=mdp.motion_smplx_pose_body,
                                 params={"command_name": "motion",
                                         "interval": 2,
                                         "frames": 10,})
@@ -234,11 +234,11 @@ class GAEMimic_ObservationsCfg:
 
     @configclass
     class PrivilegedCfg(ObsGroup):
-        command = ObsTerm(func=mdp.motion_robot_joint_pos, 
+        robot_command = ObsTerm(func=mdp.motion_robot_joint_pos, 
                           params={"command_name": "motion", 
                                   "interval": 2,
                                   "frames": 10,})
-        smplx_command = ObsTerm(func=mdp.motion_smplx_pose_body,
+        human_command = ObsTerm(func=mdp.motion_smplx_pose_body,
                                 params={"command_name": "motion",
                                         "interval": 2,
                                         "frames": 10,})
@@ -307,6 +307,7 @@ class EventCfg:
         params={"velocity_range": VELOCITY_RANGE},
     )
     
+@configclass
 class MultiTracking_EventCfg:
     """Configuration for events."""
 
@@ -493,16 +494,18 @@ class TrackingEnvCfg(ManagerBasedRLEnvCfg):
 @configclass
 class MultiTracking_TrackingEnvCfg(TrackingEnvCfg):
     """Configuration for the locomotion multi-motion-tracking environment."""
-    
-    commands: MultiTracking_CommandsCfg = MultiTracking_CommandsCfg()
-    terminations: MultiTracking_TerminationsCfg = MultiTracking_TerminationsCfg()
-    events: MultiTracking_EventCfg = MultiTracking_EventCfg()
+    def __post_init__(self):
+        super().__post_init__()
+        self.commands: MultiTracking_CommandsCfg = MultiTracking_CommandsCfg()
+        self.terminations: MultiTracking_TerminationsCfg = MultiTracking_TerminationsCfg()
+        self.events: MultiTracking_EventCfg = MultiTracking_EventCfg()
     
     
 @configclass
 class GAEMimic_TrackingEnvCfg(MultiTracking_TrackingEnvCfg):
     """Configuration for the locomotion multi-motion-tracking environment with GAE-Mimic observations."""
-    
-    commands: GAEMimic_CommandsCfg = GAEMimic_CommandsCfg()
-    observations: GAEMimic_ObservationsCfg = GAEMimic_ObservationsCfg()
+    def __post_init__(self):
+        super().__post_init__()
+        self.commands: GAEMimic_CommandsCfg = GAEMimic_CommandsCfg()
+        self.observations: GAEMimic_ObservationsCfg = GAEMimic_ObservationsCfg()
     

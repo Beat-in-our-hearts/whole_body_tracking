@@ -26,7 +26,6 @@ parser.add_argument("--datasets", type=str, default=None, help="Comma separated 
 parser.add_argument("--splits", type=str, default=None, help="Splits name to use for datasets.")
 parser.add_argument("--wandb_run_path", type=str, default=None, help="Path to the wandb run to load the model from.")
 parser.add_argument("--wandb_alg_cfg", action="store_true", default=False, help="Load algorithm config from wandb run.")
-parser.add_argument("--export_type", type=str, default="multi_motion", choices=["single_motion", "multi_motion", "sonic", "sonic_robot", "sonic_human", "sonic_keypoints"], help="Type of export: single_motion or multi_motion.")
 parser.add_argument("--export_name", type=str, default=None, help="Name of the export file.")
 
 # append RSL-RL cli arguments
@@ -217,26 +216,84 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(f"[ERROR] Failed to export JIT policy: {e}")
         
     # Determine export type
-    export_type = args_cli.export_type
-    print(f"[INFO] Exporting ONNX policy with type: {export_type}")
+    task_type = getattr(env_cfg, "task_type", None)
+    print(f"[INFO] Exporting ONNX policy with type: {task_type}")
+    if task_type in ["single_motion", "multi_motion"]:
+        if args_cli.export_name is None:
+            filename = f"{task_type}_policy.onnx"
+        else:
+            if not args_cli.export_name.endswith(".onnx"):
+                filename = f"{args_cli.export_name}.onnx"
+            else:
+                filename = args_cli.export_name
 
-    # 1. Export obs_full version - each observation term as separate input
-    export_motion_policy_as_onnx(
-        env.unwrapped,
-        policy_nn,
-        normalizer=normalizer,
-        type=export_type,
-        obs_full=True,
-        path=export_model_dir,
-        filename=f"{export_type}_policy.onnx" if args_cli.export_name is None else f"{args_cli.export_name}.onnx",
-    )
-    attach_onnx_metadata(
-        env.unwrapped, 
-        args_cli.wandb_run_path if args_cli.wandb_run_path else "none", 
-        export_model_dir,
-        filename=f"{export_type}_policy.onnx" if args_cli.export_name is None else f"{args_cli.export_name}.onnx",
-    )
+        export_motion_policy_as_onnx(
+            env.unwrapped,
+            policy_nn,
+            task_type=task_type,
+            normalizer=normalizer,
+            path=export_model_dir,
+            filename=filename,
+        )
+        attach_onnx_metadata(
+            env.unwrapped, 
+            args_cli.wandb_run_path if args_cli.wandb_run_path else "none", 
+            export_model_dir,
+            filename=filename,
+        )
+        print(f"[INFO] Exported ONNX policy to: {os.path.join(export_model_dir, filename)}")
     
+    elif task_type == "gae_mimic":
+        if args_cli.export_name is None:
+            base_filename = "gae_mimic_policy"
+        else:
+            if args_cli.export_name.endswith(".onnx"):
+                base_filename = args_cli.export_name[:-5]
+            else:
+                base_filename = args_cli.export_name
+        
+        filename_robot = base_filename + "_robot.onnx"
+        wandb_run_path = args_cli.wandb_run_path if args_cli.wandb_run_path else "none"
+        export_motion_policy_as_onnx(
+            env.unwrapped, 
+            policy_nn, 
+            task_type=task_type,
+            gaemimic_task="robot",
+            normalizer=normalizer, 
+            path=export_model_dir, 
+            filename=filename_robot,
+        )
+        attach_onnx_metadata(env.unwrapped, wandb_run_path, path=export_model_dir, filename=filename_robot)
+        print(f"[INFO] Exported ONNX policy to: {os.path.join(export_model_dir, filename_robot)}")
+        
+        # gae_mimic - export human version
+        filename_human = base_filename + "_human.onnx"
+        export_motion_policy_as_onnx(
+            env.unwrapped, 
+            policy_nn, 
+            task_type=task_type,
+            gaemimic_task="human",
+            normalizer=normalizer, 
+            path=export_model_dir, 
+            filename=filename_human,
+        )
+        attach_onnx_metadata(env.unwrapped, wandb_run_path, path=export_model_dir, filename=filename_human)
+        print(f"[INFO] Exported ONNX policy to: {os.path.join(export_model_dir, filename_human)}")
+        
+        # gae_mimic - export keypoints version
+        filename_keypoints = base_filename + "_keypoints.onnx"
+        export_motion_policy_as_onnx(
+            env.unwrapped, 
+            policy_nn, 
+            task_type=task_type,
+            gaemimic_task="keypoints",
+            normalizer=normalizer, 
+            path=export_model_dir, 
+            filename=filename_keypoints,
+        )
+        attach_onnx_metadata(env.unwrapped, wandb_run_path, path=export_model_dir, filename=filename_keypoints)
+        print(f"[INFO] Exported ONNX policy to: {os.path.join(export_model_dir, filename_keypoints)}")
+        
     # reset environment
     try: # isaacsim 4.5
         obs, _ = env.get_observations()

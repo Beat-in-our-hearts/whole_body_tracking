@@ -71,8 +71,7 @@ from isaaclab.envs.common import ViewerCfg
 
 # Import extensions to set up environment tasks
 import whole_body_tracking.tasks  # noqa: F401
-from whole_body_tracking.utils.my_on_policy_runner import MotionOnPolicyRunner as OnPolicyRunner
-from whole_body_tracking.utils.my_on_policy_runner import SONICOnPolicyRunner
+from whole_body_tracking.utils.tracking_on_policy_runner import Tracking_OnPolicyRunner as OnPolicyRunner
 
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
@@ -166,29 +165,13 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env = RslRlVecEnvWrapper(env)
 
     # create runner from rsl-rl
-    sonic_flag = getattr(env_cfg, "GAEMimic_FLAG", False)
-    if sonic_flag:
-        if args_cli.pretrain_vae_ckpt is not None:
-            agent_cfg.algorithm.pretrain_vae = True
-            print("="*50)
-            print(f"[INFO]: Enabled VAE pretraining in SONIC PPO algorithm config.")
-            print("="*50)
-            
-        runner = SONICOnPolicyRunner(
-            env, 
-            agent_cfg.to_dict(), 
-            log_dir=log_dir, 
-            device=agent_cfg.device,
-            enable_keypoints_export=getattr(env_cfg, "GAEMimic_Keypoints_Export", False),
-        )
-    else:
-        runner = OnPolicyRunner(
-            env, 
-            agent_cfg.to_dict(), 
-            type="single_motion" if args_cli.disable_multi_motion else "multi_motion",
-            log_dir=log_dir, 
-            device=agent_cfg.device,
-        )
+    runner = OnPolicyRunner(
+        env, 
+        agent_cfg.to_dict(), 
+        task_type=getattr(env_cfg, "task_type", None),
+        log_dir=log_dir, 
+        device=agent_cfg.device,
+    )
     
     # load pre-trained VAE checkpoint if specified
     if args_cli.pretrain_vae_ckpt is not None:
