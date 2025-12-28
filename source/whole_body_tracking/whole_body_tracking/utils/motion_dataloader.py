@@ -8,6 +8,7 @@ from collections.abc import Sequence
 import torch
 from itertools import accumulate
 import bisect
+import math
 import numpy as np
 from typing import Any, Dict, Optional
 
@@ -226,7 +227,7 @@ class Motion_Dataloader:
             all_motion_lengths: List of frame counts for all motions in dataset
         """
         total_frames = sum(all_motion_lengths)
-        target_frames_per_rank = int(total_frames / self.world_size) + 1
+        target_frames_per_rank = math.ceil(total_frames / self.world_size) + 1 # for safety, when world_size=1
         
         # cumsum
         cumulative_lengths = list(accumulate(all_motion_lengths))
@@ -235,7 +236,7 @@ class Motion_Dataloader:
         
         # find motion index 
         start_motion_idx = bisect.bisect_left(cumulative_lengths.copy(), cur_rank_tg_start_frames)
-        end_motion_idx = bisect.bisect_left(cumulative_lengths.copy(), cur_rank_tg_end_frames)
+        end_motion_idx = bisect.bisect_right(cumulative_lengths.copy(), cur_rank_tg_end_frames)
         self.start_motion_idx = start_motion_idx
         self.end_motion_idx = end_motion_idx
         
