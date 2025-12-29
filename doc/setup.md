@@ -12,6 +12,9 @@ conda activate env_mimic
 2. isaacsim 4.5 + isaaclab 2.1.1
 
 ```
+# torch 2.7.0 + torchvision 0.22.0 + torchaudio 2.7.0 for cuda 12.8
+pip install torch==2.7.0 torchvision==0.22.0 torchaudio==2.7.0 --index-url https://download.pytorch.org/whl/cu128
+
 # isaacsim 4.5
 pip install 'isaacsim[all,extscache]==4.5.0' --extra-index-url https://pypi.nvidia.com
 
