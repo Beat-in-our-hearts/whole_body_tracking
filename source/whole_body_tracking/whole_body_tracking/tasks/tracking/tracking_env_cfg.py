@@ -356,11 +356,11 @@ class MultiTracking_EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    motion_global_anchor_pos = RewTerm(
-        func=mdp.motion_global_anchor_position_error_exp,
-        weight=0.5,
-        params={"command_name": "motion", "std": 0.3},
-    )
+    # motion_global_anchor_pos = RewTerm(
+    #     func=mdp.motion_global_anchor_position_error_exp,
+    #     weight=0.5,
+    #     params={"command_name": "motion", "std": 0.3},
+    # )
     motion_global_anchor_ori = RewTerm(
         func=mdp.motion_global_anchor_orientation_error_exp,
         weight=0.5,
@@ -386,7 +386,7 @@ class RewardsCfg:
         weight=1.0,
         params={"command_name": "motion", "std": 3.14},
     )
-    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1e-1)
+    action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-5e-1)
     joint_limit = RewTerm(
         func=mdp.joint_pos_limits,
         weight=-10.0,
