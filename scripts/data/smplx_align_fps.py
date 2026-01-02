@@ -50,7 +50,7 @@ class SMPLXFrameAligner:
         Returns:
             Dictionary containing all SMPLX parameters
         """
-        data = np.load(npz_path)
+        data = np.load(npz_path, allow_pickle=True)
         smplx_dict = {key: data[key] for key in data.files}
         logger.info(f"Loaded SMPLX data: {npz_path}")
         logger.info(f"Parameters: {list(smplx_dict.keys())}")
