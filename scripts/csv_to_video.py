@@ -101,6 +101,11 @@ def csv2video_tracking(xml_path, csv_path, save_dir, temp_image_dir="/tmp/temp_i
     video_path = os.path.join(save_dir, basename + '.mp4')
     os.system(f"ffmpeg -y -framerate 30 -i {frame_dir}/image_%04d.png -c:v libx264 -pix_fmt yuv420p {video_path} 2>&1 | grep -v 'frame='")
     print(f"[INFO] Saved video to {video_path}")
+    
+    # cleanup temp images
+    for img_file in glob.glob(os.path.join(frame_dir, "*.png")):
+        os.remove(img_file)
+    os.rmdir(frame_dir)
 
 
 def main():
@@ -131,7 +136,7 @@ def main():
             return
         csv_files = [str(input_path)]
     elif input_path.is_dir():
-        csv_files = sorted(glob.glob(os.path.join(str(input_path), "*.csv")))
+        csv_files = sorted(glob.glob(os.path.join(str(input_path), "**/*.csv"), recursive=True))
         if len(csv_files) == 0:
             print(f"[ERROR] No CSV files found in directory: {input_path}")
             return
