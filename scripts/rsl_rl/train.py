@@ -112,7 +112,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         
         env_cfg.commands.motion.distributed_world_size = world_size
         env_cfg.commands.motion.distributed_rank = rank
-        env_cfg.commands.motion.distributed_data_split = True
+        if world_size > 1:
+            env_cfg.commands.motion.distributed_data_split = True
         
         print(f"[INFO] Distributed training setup:")
         print(f"  - World size: {world_size}")

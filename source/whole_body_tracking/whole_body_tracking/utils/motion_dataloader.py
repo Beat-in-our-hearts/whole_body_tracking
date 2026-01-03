@@ -375,6 +375,9 @@ class Unify_Motion_Dataloader(Motion_Dataloader):
         dataset: Unify_Motion_Dataset,
         body_indexes: Sequence[int],
         device: str = "cuda",
+        world_size: int = 1,
+        rank: int = 0,
+        enable_data_split: bool = False,
     ):
         """Initialize Unify_Motion_Dataloader.
         
@@ -382,35 +385,65 @@ class Unify_Motion_Dataloader(Motion_Dataloader):
             dataset: Unify_Motion_Dataset instance with paired data
             body_indexes: Sequence of body indices for filtering
             device: Device to load tensors on
+            world_size: Total number of distributed processes (default: 1 for single process)
+            rank: Current process rank (default: 0)
+            enable_data_split: Whether to enable distributed data sharding (default: False)
         """
-        # Set the dataset before calling parent __init__
         self.dataset = dataset
         self.device = device
-        self.num_motions = len(dataset)
+        self.world_size = world_size
+        self.rank = rank
+        self.enable_data_split = enable_data_split
+        
         self._body_indexes = body_indexes
         
         # Use extended buffer class
         self.motion_buffer = self.UnifyMotionBuffer(self._body_indexes)
         
         # Initialize metadata (will be populated in _preload_and_concatenate)
-        self.motion_lengths: torch.Tensor = None
-        self.motion_offsets: torch.Tensor = None
-        self.motion_fps: torch.Tensor = None
-        self.time_step_total: int = 0
+        self.motion_lengths: torch.Tensor
+        self.motion_offsets: torch.Tensor
+        self.motion_fps: torch.Tensor
+        self.time_step_total: int
+        self.num_motions : int
         
-        print(f"[Unify_Motion_Dataloader] Loading and concatenating {self.num_motions} paired motions...")
+        # Distributed data tracking
+        self.start_motion_idx: int = 0     # Start motion index in global dataset
+        self.end_motion_idx: int = 0       # End motion index in global dataset
+        self.global_num_motions: int = len(dataset)  # Total motions in dataset
+        
+        print(f"[Unify_Motion_Dataloader] Loading and concatenating motions for rank {self.rank}/{self.world_size}...")
         
         # Load all motions and concatenate
         self._preload_and_concatenate()
         
-        print(f"[Unify_Motion_Dataloader] Initialization complete. Total frames: {self.time_step_total}")
+        print(f"[Unify_Motion_Dataloader] Rank {self.rank} initialization complete. Total frames: {self.time_step_total}")
     
     
     def _preload_and_concatenate(self) -> None:
         """Preload all paired motions and concatenate with extended data handling.
         
         Extends parent method to also handle SMPL-X and extended robot data.
+        For distributed training: if enable_data_split=True, this will partition motions
+        across ranks based on frame count to balance load.
         """
+        # === Step 1: Load motion metadata for all motions (no GPU transfer yet) ===
+        all_motion_lengths = []
+        for i in range(self.global_num_motions):
+            sample = self.dataset[i]
+            all_motion_lengths.append(sample["length"])
+        
+        # === Step 2: Determine which motions to load for this rank ===
+        if self.enable_data_split and self.world_size > 1:
+            self._compute_rank_motion_indices(all_motion_lengths)
+        else:
+            # Single process or data split disabled: load all motions
+            self.start_motion_idx = 0
+            self.end_motion_idx = self.global_num_motions
+        
+        self.num_motions = self.end_motion_idx - self.start_motion_idx
+        
+        # === Step 3: Load and concatenate only this rank's motions ===
         # Base data lists (inherited from parent)
         data_lists = {
             'joint_pos': [],
@@ -432,8 +465,8 @@ class Unify_Motion_Dataloader(Motion_Dataloader):
         lengths = []
         fps_list = []
         
-        # Load all motion pairs
-        for i in range(self.num_motions):
+        # Load motions assigned to this rank
+        for i in range(self.start_motion_idx, self.end_motion_idx):
             item = self.dataset[i]
             robot_motion = item["motion"]
             robot_len = item["length"]
@@ -478,7 +511,9 @@ class Unify_Motion_Dataloader(Motion_Dataloader):
         self.time_step_total = self.motion_buffer.joint_pos.shape[0]
         
         # Print buffer info
-        print(f"[Unify_Motion_Dataloader] Concatenated tensors:")
+        print(f"[Unify_Motion_Dataloader] Rank {self.rank} concatenated tensors:")
+        print(f"  - Motion indices: [{self.start_motion_idx}, {self.end_motion_idx})")
+        print(f"  - Number of motions: {self.num_motions}")
         print(f"  joint_pos: {self.motion_buffer.joint_pos.shape}")
         print(f"  joint_vel: {self.motion_buffer.joint_vel.shape}")
         print(f"  body_pos_w: {self.motion_buffer.body_pos_w.shape}")

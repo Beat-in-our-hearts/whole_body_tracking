@@ -910,6 +910,9 @@ class GAEMimic_MultiMotionCommand(MultiMotionCommand):
             dataset=self.dataset,
             body_indexes=self.body_indexes,
             device=self.device,
+            world_size=self.cfg.distributed_world_size,
+            rank=self.cfg.distributed_rank,
+            enable_data_split=self.cfg.distributed_data_split,
         )
         
     @property
