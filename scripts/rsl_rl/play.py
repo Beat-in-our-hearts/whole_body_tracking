@@ -27,6 +27,7 @@ parser.add_argument("--splits", type=str, default=None, help="Splits name to use
 parser.add_argument("--wandb_run_path", type=str, default=None, help="Path to the wandb run to load the model from.")
 parser.add_argument("--wandb_alg_cfg", action="store_true", default=False, help="Load algorithm config from wandb run.")
 parser.add_argument("--export_name", type=str, default=None, help="Name of the export file.")
+parser.add_argument("--activate_signals", choices=["robot", "smplx", "keypoints"], default=None, help="Comma separated list of signals to activate.")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -137,6 +138,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
         print(f"[INFO]: Loading model checkpoint from: {resume_path}")
 
+    # NOTE: GAE MIMIC activate signals override
+    if args_cli.activate_signals is not None and hasattr(agent_cfg.policy, "activate_signals"):
+        agent_cfg.policy.activate_signals = args_cli.activate_signals
+        print(f"[INFO]: Overriding activate_signals from CLI: {args_cli.activate_signals}")
+    
     from isaaclab.envs.common import ViewerCfg
     
     env_cfg.viewer = ViewerCfg(
@@ -149,6 +155,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         asset_name = "robot",
     )
     env_cfg.terminations.time_out = None
+    env_cfg.events.push_robot = None
 
     if args_cli.datasets is not None and args_cli.splits is not None:
         env_cfg.commands.motion.dataset_dirs = args_cli.datasets.split(",")

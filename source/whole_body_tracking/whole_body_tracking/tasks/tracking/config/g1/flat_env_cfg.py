@@ -101,3 +101,17 @@ class GAEMimic_G1FlatEnvCfg(GAEMimic_TrackingEnvCfg):
             "right_wrist_yaw_link",
         ]
         
+@configclass
+class Play_GAEMimic_G1FlatEnvCfg(GAEMimic_G1FlatEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.commands.motion.dataset_dirs = [
+            os.path.join(EXTEMDED_DATASETS_DIR, "lafan1_dataset"),
+            # os.path.join(EXTEMDED_DATASETS_DIR, "100style_dataset"),
+            os.path.join(EXTEMDED_DATASETS_DIR, "omomo_dataset"),
+        ]
+        self.commands.motion.splits = [
+            "train",
+            # "train",
+            "train",
+        ]

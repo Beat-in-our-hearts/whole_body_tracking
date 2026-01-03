@@ -29,6 +29,7 @@ parser.add_argument("--disable_multi_motion", action="store_true", default=False
 parser.add_argument("--motion_file", type=str, default=None, help="Path to the motion file to load.")
 parser.add_argument("--pretrain_vae_ckpt", type=str, default=None, help="Path to the pre-trained VAE checkpoint.")
 parser.add_argument("--resume_wandb_run_path", type=str, default=None, help="Path to the wandb run to resume from")
+parser.add_argument("--activate_signals", choices=["robot", "smplx", "keypoints"], default=None, help="Comma separated list of signals to activate.")
 
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
@@ -143,6 +144,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if agent_cfg.run_name:
         log_dir += f"_{agent_cfg.run_name}"
     log_dir = os.path.join(log_root_path, log_dir)
+    
+    # NOTE: GAE MIMIC activate signals override
+    if args_cli.activate_signals is not None and hasattr(agent_cfg.policy, "activate_signals"):
+        agent_cfg.policy.activate_signals = args_cli.activate_signals
+        print(f"[INFO]: Overriding activate_signals from CLI: {args_cli.activate_signals}")
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)

@@ -96,21 +96,3 @@ class GAEMimic_Large_G1FlatPPORunnerCfg(GAEMimic_G1FlatPPORunnerCfg):
         self.policy.robot_decoder_hidden_dims = [256, 512, 1024]
         self.policy.human_decoder_hidden_dims = [256, 512, 1024]
         self.policy.keypoints_decoder_hidden_dims = [256, 512, 1024]
-
-@configclass
-class GAEMimic_G1FlatPPORunnerCfg_Robot(GAEMimic_G1FlatPPORunnerCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.policy.activate_signals = "robot"
-        
-@configclass
-class GAEMimic_G1FlatPPORunnerCfg_Human(GAEMimic_G1FlatPPORunnerCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.policy.activate_signals = "human"
-        
-@configclass
-class GAEMimic_G1FlatPPORunnerCfg_Keypoints(GAEMimic_G1FlatPPORunnerCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.policy.activate_signals = "keypoints"
