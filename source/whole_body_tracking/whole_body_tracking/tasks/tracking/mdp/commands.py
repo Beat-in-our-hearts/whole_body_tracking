@@ -607,7 +607,7 @@ class MultiMotionCommand(CommandTerm):
         
         # === Step 2: Compute sampling probabilities ===
         clip_bin_failed_count = torch.minimum(self.bin_failed_count, self.bin_failed_count.sum() / self.cfg.adaptive_cap)
-        failed_sampling_probabilities = (clip_bin_failed_count + 1e-12) / (clip_bin_failed_count.sum() + 1e-12 * self.bin_count)
+        failed_sampling_probabilities = torch.nn.functional.normalize(clip_bin_failed_count, p=1, dim=0)
         sampling_probabilities = self.cfg.adaptive_uniform_ratio * failed_sampling_probabilities + \
                                 (1 - self.cfg.adaptive_uniform_ratio) / self.bin_count
         sampling_probabilities = sampling_probabilities / sampling_probabilities.sum()
@@ -844,10 +844,10 @@ class MultiMotionCommandCfg(CommandTermCfg):
     adaptive_lambda: float = 0.8
     """Exponential decay factor for kernel weights."""
     
-    adaptive_uniform_ratio: float = 0.1
+    adaptive_uniform_ratio: float = 0.9
     """Ratio of uniform sampling mixed with failure-based sampling."""
     
-    adaptive_cap: int = 200
+    adaptive_cap: int = 2
     """Cap for bin failure counts to prevent extreme probabilities."""
     
     adaptive_alpha: float = 0.001

@@ -55,6 +55,7 @@ class Motion_Dataset(Dataset):
         dataset_dirs: list[str],
         robot_name: str,
         splits: list[Union[str, list[str]]],
+        shuffle_seed: int = 42,
     ):
         """Initialize the Motion_Dataset.
         
@@ -80,6 +81,7 @@ class Motion_Dataset(Dataset):
         self.dataset_dirs = [Path(d).expanduser().resolve() for d in dataset_dirs]
         self.robot_name = robot_name
         self.splits = splits
+        self.shuffle_seed = shuffle_seed
         
         # Storage for NPZ file paths and metadata
         self.npz_paths: list[Path] = []
@@ -89,6 +91,7 @@ class Motion_Dataset(Dataset):
         
         # Load dataset information and collect NPZ paths
         self._load_dataset_info()
+        self._random_motions()
         
         print(f"[Motion_Dataset] Loaded {len(self.npz_paths)} motion clips from {len(self.dataset_dirs)} dataset(s)")
         print(f"[Motion_Dataset] Quantity distribution: {self._get_quantity_stats()}")
@@ -151,6 +154,17 @@ class Motion_Dataset(Dataset):
                     else:
                         print(f"[Motion_Dataset] Warning: NPZ file not found: {npz_path}")
     
+    def _random_motions(self):
+        if self.shuffle_seed is not None:
+            # get the number of motions
+            num_motions = len(self.npz_paths)
+            # generate a random permutation of indices with fixed seed
+            gen = torch.Generator().manual_seed(self.shuffle_seed)
+            indices = torch.randperm(num_motions, generator=gen)
+            self.shuffle_indices = indices.tolist()
+        else:
+            self.shuffle_indices = list(range(len(self.npz_paths)))
+    
     def _get_quantity_stats(self) -> dict[int, int]:
         """Get statistics of quantity distribution.
         
@@ -195,7 +209,7 @@ class Motion_Dataset(Dataset):
                 - quantity: Quality/difficulty rating (1: best, 2: medium, 3: hard)
                 - dataset_source: Source dataset and split (format: "dataset_name:split")
         """
-        npz_path = self.npz_paths[idx]
+        npz_path = self.npz_paths[self.shuffle_indices[idx]]
         
         # Load motion data
         data = np.load(npz_path)

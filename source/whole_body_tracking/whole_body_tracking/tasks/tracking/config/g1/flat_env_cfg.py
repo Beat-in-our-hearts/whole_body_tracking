@@ -108,10 +108,10 @@ class Play_GAEMimic_G1FlatEnvCfg(GAEMimic_G1FlatEnvCfg):
         self.commands.motion.dataset_dirs = [
             os.path.join(EXTEMDED_DATASETS_DIR, "lafan1_dataset"),
             # os.path.join(EXTEMDED_DATASETS_DIR, "100style_dataset"),
-            os.path.join(EXTEMDED_DATASETS_DIR, "omomo_dataset"),
+            # os.path.join(EXTEMDED_DATASETS_DIR, "omomo_dataset"),
         ]
         self.commands.motion.splits = [
             "train",
             # "train",
-            "train",
+            # "train",
         ]

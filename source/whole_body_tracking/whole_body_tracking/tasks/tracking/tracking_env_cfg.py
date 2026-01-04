@@ -317,8 +317,8 @@ class MultiTracking_EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.3, 1.6),
-            "dynamic_friction_range": (0.3, 1.2),
+            "static_friction_range": (0.2, 1.6),
+            "dynamic_friction_range": (0.2, 1.2),
             "restitution_range": (0.0, 0.5),
             "num_buckets": 64,
         },
@@ -434,32 +434,6 @@ class TerminationsCfg:
         },
     )
 
-@configclass
-class MultiTracking_TerminationsCfg:
-    """Termination terms for the MDP."""
-
-    time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    anchor_pos = DoneTerm(
-        func=mdp.bad_anchor_pos_z_only,
-        params={"command_name": "motion", "threshold": 0.25},
-    )
-    anchor_ori = DoneTerm(
-        func=mdp.bad_anchor_ori,
-        params={"asset_cfg": SceneEntityCfg("robot"), "command_name": "motion", "threshold": 0.8},
-    )
-    # ee_body_pos = DoneTerm(
-    #     func=mdp.bad_motion_body_pos_z_only,
-    #     params={
-    #         "command_name": "motion",
-    #         "threshold": 0.30,
-    #         "body_names": [
-    #             "left_ankle_roll_link",
-    #             "right_ankle_roll_link",
-    #             "left_wrist_yaw_link",
-    #             "right_wrist_yaw_link",
-    #         ],
-    #     },
-    # )
 
 @configclass
 class CurriculumCfg:
@@ -510,7 +484,6 @@ class MultiTracking_TrackingEnvCfg(TrackingEnvCfg):
     def __post_init__(self):
         super().__post_init__()
         self.commands: MultiTracking_CommandsCfg = MultiTracking_CommandsCfg()
-        self.terminations: MultiTracking_TerminationsCfg = MultiTracking_TerminationsCfg()
         self.events: MultiTracking_EventCfg = MultiTracking_EventCfg()
     
     
