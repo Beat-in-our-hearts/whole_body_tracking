@@ -64,14 +64,14 @@ arg_parser.add_argument("--disable_smplx_6d_data", action="store_true", help="Fl
 arg_parser.add_argument("--disable_pico_data", action="store_true", help="Flag to include keypoints SE3 data from npz files.")
 arg_parser.add_argument("--enable_smplx_global_rotation", action="store_true", help="Flag to include SMPL-X root rotation data.")
 
-arg_parser.add_argument("--robot_body_names_yaml", type=str, required=True, help="Path to the YAML file containing robot body names.")
-arg_parser.add_argument("--robot_root_body_name", type=str, default="pelvis", help="Name of the robot's root body in the YAML file.")
+# arg_parser.add_argument("--robot_body_names_yaml", type=str, required=True, help="Path to the YAML file containing robot body names.")
+# arg_parser.add_argument("--robot_root_body_name", type=str, default="pelvis", help="Name of the robot's root body in the YAML file.")
 args = arg_parser.parse_args()
 
-robot_names_file = args.robot_body_names_yaml
-robot_names = yaml.safe_load(open(robot_names_file, 'r'))
-robot_body_names = robot_names['bodies']['names']
-robot_joint_names = robot_names['joints']['names']
+# robot_names_file = args.robot_body_names_yaml
+# robot_names = yaml.safe_load(open(robot_names_file, 'r'))
+# robot_body_names = robot_names['bodies']['names']
+# robot_joint_names = robot_names['joints']['names']
 
 def single_file_extend(
     npz_file_path: str,
