@@ -81,7 +81,7 @@ class GAEMimic_G1FlatEnvCfg(GAEMimic_TrackingEnvCfg):
         # gaemimic motion tracking settings
         self.commands.motion.robot_name = "g1"
         self.commands.motion.dataset_dirs = [os.path.join(EXTEMDED_DATASETS_DIR, "lafan1_dataset"),]
-        self.commands.motion.splits = ["walk_subset", ]
+        self.commands.motion.splits = ["train", ]
         
         self.commands.motion.anchor_body_name = "pelvis"
         self.commands.motion.body_names = [

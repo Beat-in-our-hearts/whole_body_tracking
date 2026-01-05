@@ -437,6 +437,9 @@ class MultiMotionCommand(CommandTerm):
         self.metrics["sampling_top1_prob"] = torch.zeros(self.num_envs, device=self.device)
         self.metrics["sampling_top1_bin"] = torch.zeros(self.num_envs, device=self.device)
         
+        self.metrics["sampling_top2_prob"] = torch.zeros(self.num_envs, device=self.device)
+        self.metrics["sampling_top2_bin"] = torch.zeros(self.num_envs, device=self.device)
+        
         print(f"[MultiMotionCommand] Initialization complete:")
         print(f"  - Loaded {self.dataloader.num_motions} motions")
         print(f"  - Total frames: {self.dataloader.time_step_total}")
@@ -651,6 +654,11 @@ class MultiMotionCommand(CommandTerm):
         self.metrics["sampling_entropy"][:] = H_norm
         self.metrics["sampling_top1_prob"][:] = pmax
         self.metrics["sampling_top1_bin"][:] = imax.float() / self.bin_count
+        # Top-2
+        failed_sampling_probabilities[imax] = 0.0
+        p2max, i2max = failed_sampling_probabilities.max(dim=0)
+        self.metrics["sampling_top2_prob"][:] = p2max
+        self.metrics["sampling_top2_bin"][:] = i2max.float() / self.bin_count
 
     def _resample_command(self, env_ids: Sequence[int]):
         """Resample motion commands for given environments."""

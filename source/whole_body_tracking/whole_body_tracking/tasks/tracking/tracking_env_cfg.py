@@ -342,6 +342,26 @@ class MultiTracking_EventCfg:
             "com_range": {"x": (-0.075, 0.075), "y": (-0.1, 0.1), "z": (-0.1, 0.1)},
         },
     )
+    
+    # body_mass = EventTerm(
+    #     func=mdp.randomize_rigid_body_mass,
+    #     mode="startup",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+    #         "mass_distribution_params": (0.8, 1.2),
+    #         "operation": "scale",
+    #     },
+    # )
+    
+    # random_joint_friction = EventTerm(
+    #     func=mdp.randomize_joint_parameters,
+    #     mode="startup",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+    #         "friction_distribution_params": (0.9, 1.1),
+    #         "operation": "scale",
+    #     },
+    # )
 
     # interval
     push_robot = EventTerm(
