@@ -45,7 +45,7 @@ class GAEMimic_G1FlatPPORunnerCfg(G1FlatPPORunnerCfg):
     empirical_normalization = False # disable empirical normalization for high-dim input
     policy = RslRl_Triple_AE_PPOPolicyCfg(
         init_noise_std=1.0,
-        actor_hidden_dims=[512, 256, 128],
+        actor_hidden_dims=[256, 128],
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
         # Triple_AE specific configs
@@ -96,3 +96,9 @@ class GAEMimic_Large_G1FlatPPORunnerCfg(GAEMimic_G1FlatPPORunnerCfg):
         self.policy.robot_decoder_hidden_dims = [256, 512, 1024]
         self.policy.human_decoder_hidden_dims = [256, 512, 1024]
         self.policy.keypoints_decoder_hidden_dims = [256, 512, 1024]
+        
+@configclass
+class GAEMimic_G1FlatPPORunnerCfg_V2(GAEMimic_G1FlatPPORunnerCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.policy.actor_hidden_dims = [512, 256, 128]

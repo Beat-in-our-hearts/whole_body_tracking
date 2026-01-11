@@ -140,7 +140,7 @@ def single_file_extend(
         body_quat_w = extended_data['body_quat_w']  # (N, num_bodies, 4)
         
         # Pelvis is body 0 (root)
-        # 5 PICO keypoints: [body_9(torso), left_wrist(24), right_wrist(25), left_ankle(14), right_ankle(15)]
+        # 5 PICO keypoints: [body_9(torso_link), left_wrist_roll_link(24), right_wrist_roll_link(25), left_ankle_pitch_link(14), right_ankle_pitch_link(15)]
         keypoint_indices = [9, 24, 25, 14, 15]
         
         # Get pelvis SE3

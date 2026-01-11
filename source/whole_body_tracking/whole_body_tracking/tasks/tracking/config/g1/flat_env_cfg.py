@@ -46,7 +46,7 @@ class MultiTracking_G1FlatEnvCfg(MultiTracking_TrackingEnvCfg):
         
         # multi motion tracking settings
         self.commands.motion.robot_name = "g1"
-        self.commands.motion.dataset_dirs = [os.path.join(REPLAY_DATASETS_DIR, "LAFAN1_Retargeting_Dataset"),]
+        self.commands.motion.dataset_dirs = [os.path.join(EXTEMDED_DATASETS_DIR, "lafan1_dataset"),]
         self.commands.motion.splits = ["walk_subset", ]
         
         self.commands.motion.anchor_body_name = "pelvis"
@@ -80,8 +80,15 @@ class GAEMimic_G1FlatEnvCfg(GAEMimic_TrackingEnvCfg):
         
         # gaemimic motion tracking settings
         self.commands.motion.robot_name = "g1"
-        self.commands.motion.dataset_dirs = [os.path.join(EXTEMDED_DATASETS_DIR, "lafan1_dataset"),]
-        self.commands.motion.splits = ["train", ]
+        self.commands.motion.dataset_dirs = [
+            os.path.join(EXTEMDED_DATASETS_DIR, "lafan1_dataset"),
+            os.path.join(EXTEMDED_DATASETS_DIR, "100style_dataset"),
+            ]
+        self.commands.motion.splits = ["train", "train", ]
+        
+        self.commands.motion.adaptive_uniform_ratio = 0.0
+        self.commands.motion.adaptive_cap = 5
+        self.commands.motion.adaptive_alpha = 5e-4
         
         self.commands.motion.anchor_body_name = "pelvis"
         self.commands.motion.body_names = [

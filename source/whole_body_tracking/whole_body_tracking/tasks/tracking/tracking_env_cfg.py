@@ -14,7 +14,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
-
+from isaaclab.managers import CurriculumTermCfg as CurrTerm
 ##
 # Pre-defined configs
 ##
@@ -458,8 +458,14 @@ class TerminationsCfg:
 @configclass
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
-
-    pass
+    adaptive_sampling_ratio = CurrTerm(
+        func=mdp.adaptive_sampling_ratio,
+        params={
+            "reward_term_name": "motion_global_anchor_ori",
+            "max_ratio": 0.9,
+            "delta_ratio": 1e-3,
+        }
+    )
 
 
 ##
