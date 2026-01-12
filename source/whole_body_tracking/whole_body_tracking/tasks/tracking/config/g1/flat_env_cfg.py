@@ -88,7 +88,7 @@ class GAEMimic_G1FlatEnvCfg(GAEMimic_TrackingEnvCfg):
         
         self.commands.motion.adaptive_uniform_ratio = 0.0
         self.commands.motion.adaptive_cap = 5
-        self.commands.motion.adaptive_alpha = 5e-4
+        self.commands.motion.adaptive_alpha = 1e-3
         
         self.commands.motion.anchor_body_name = "pelvis"
         self.commands.motion.body_names = [
@@ -122,3 +122,65 @@ class Play_GAEMimic_G1FlatEnvCfg(GAEMimic_G1FlatEnvCfg):
             # "train",
             # "train",
         ]
+        
+        
+@configclass
+class GAEMimic_SingleFinetune_G1FlatEnvCfg(GAEMimic_TrackingEnvCfg):
+    task_type: str = "gae_mimic"
+    
+    def __post_init__(self):
+        super().__post_init__()
+        
+        # specify which modality to finetune
+        self.finetune_task("robot")
+        
+        self.scene.robot = G1_CYLINDER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.actions.joint_pos.scale = G1_ACTION_SCALE
+        
+        # gaemimic motion tracking settings
+        self.commands.motion.robot_name = "g1"
+        self.commands.motion.dataset_dirs = [
+            os.path.join(EXTEMDED_DATASETS_DIR, "lafan1_dataset"),
+            # os.path.join(EXTEMDED_DATASETS_DIR, "100style_dataset"),
+            ]
+        self.commands.motion.splits = ["train", ]
+        
+        self.commands.motion.adaptive_uniform_ratio = 0.0
+        self.commands.motion.adaptive_cap = 5
+        self.commands.motion.adaptive_alpha = 1e-3
+        self.curriculum.adaptive_sampling_ratio.params["delta_ratio"] = 5e-2
+        
+        self.commands.motion.anchor_body_name = "pelvis"
+        self.commands.motion.body_names = [
+            "pelvis",
+            "left_hip_roll_link",
+            "left_knee_link",
+            "left_ankle_roll_link",
+            "right_hip_roll_link",
+            "right_knee_link",
+            "right_ankle_roll_link",
+            "torso_link",
+            "left_shoulder_roll_link",
+            "left_elbow_link",
+            "left_wrist_yaw_link",
+            "right_shoulder_roll_link",
+            "right_elbow_link",
+            "right_wrist_yaw_link",
+        ]
+        
+    def finetune_task(self, cmd_name):
+        if cmd_name == "robot":
+            self.observations.policy.human_command = None
+            self.observations.policy.keypoints_command = None
+            self.observations.critic.human_command = None
+            self.observations.critic.keypoints_command = None
+        elif cmd_name == "human":
+            self.observations.policy.robot_command = None
+            self.observations.policy.keypoints_command = None
+            self.observations.critic.robot_command = None
+            self.observations.critic.keypoints_command = None
+        elif cmd_name == "keypoints":
+            self.observations.policy.robot_command = None
+            self.observations.policy.human_command = None
+            self.observations.critic.robot_command = None
+            self.observations.critic.human_command = None

@@ -80,3 +80,44 @@ class RslRl_Triple_AE_PPOAlgorithmCfg(RslRlPpoAlgorithmCfg):
 
     finetune_keypoints_encoder: bool = False
     """Whether to finetune the keypoints encoder and decoder. Default is False."""
+    
+@configclass
+class RslRl_Triple_AE_PPO_Single_Finetune_PolicyCfg(RslRlPpoActorCriticCfg):
+    """Configuration for the Triple_AE_PPO_Single_Finetune policy.
+    
+    This policy is designed for single modality finetuning with frozen encoder/decoder.
+    The cmd encoder and decoder are frozen by default, only training the action decoder.
+    """
+
+    class_name: str = "ActorCritic_Triple_AE_Single_Finetune"
+    """The policy class name. Default is ActorCritic_Triple_AE_Single_Finetune."""
+    
+    actor_cmd_dim: int = MISSING
+    """The cmd state dimension for the actor (input to the encoder)."""
+
+    latent_dim: int = 32
+    """The latent dimension for the Autoencoder. Default is 32."""
+    
+    cmd_encoder_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the cmd encoder network."""
+    
+    cmd_decoder_hidden_dims: list[int] = MISSING
+    """The hidden dimensions of the cmd decoder network."""
+    
+    freeze: bool = True
+    """Whether to freeze the cmd encoder and decoder. Default is True."""
+
+
+@configclass
+class RslRl_Triple_AE_PPO_Single_Finetune_AlgorithmCfg(RslRlPpoAlgorithmCfg):
+    """Configuration for the Triple_AE_PPO_Single_Finetune algorithm.
+    
+    This algorithm is designed for finetuning a pre-trained Triple_AE model on a single modality.
+    Only the reconstruction loss for cmd state is used (no alignment or consistency losses).
+    """
+
+    class_name: str = "Triple_AE_PPO_Single_Finetune"
+    """The algorithm class name. Default is Triple_AE_PPO_Single_Finetune."""
+    
+    reconstruction_loss_coef_cmd: float = 0.0
+    """The coefficient for the cmd state reconstruction loss. Default is 0.0."""

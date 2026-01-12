@@ -99,6 +99,7 @@ class GAEMimic_Large_G1FlatPPORunnerCfg(GAEMimic_G1FlatPPORunnerCfg):
         
 @configclass
 class GAEMimic_G1FlatPPORunnerCfg_V2(GAEMimic_G1FlatPPORunnerCfg):
+    max_iterations = 500_000
     def __post_init__(self):
         super().__post_init__()
         self.policy.actor_hidden_dims = [512, 256, 128]
