@@ -273,8 +273,8 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.3, 1.6),
-            "dynamic_friction_range": (0.3, 1.2),
+            "static_friction_range": (0.1, 1.6),
+            "dynamic_friction_range": (0.1, 1.6),
             "restitution_range": (0.0, 0.5),
             "num_buckets": 64,
         },
@@ -295,63 +295,19 @@ class EventCfg:
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names="torso_link"),
-            "com_range": {"x": (-0.025, 0.025), "y": (-0.05, 0.05), "z": (-0.05, 0.05)},
+            "com_range": {"x": (-0.1, 0.1), "y": (-0.1, 0.1), "z": (-0.1, 0.1)},
         },
     )
-
-    # interval
-    push_robot = EventTerm(
-        func=mdp.push_by_setting_velocity,
-        mode="interval",
-        interval_range_s=(1.0, 3.0),
-        params={"velocity_range": VELOCITY_RANGE},
-    )
     
-@configclass
-class MultiTracking_EventCfg:
-    """Configuration for events."""
-
-    # startup
-    physics_material = EventTerm(
-        func=mdp.randomize_rigid_body_material,
+    body_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
         mode="startup",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.2, 1.6),
-            "dynamic_friction_range": (0.2, 1.2),
-            "restitution_range": (0.0, 0.5),
-            "num_buckets": 64,
+            "mass_distribution_params": (0.8, 1.2),
+            "operation": "scale",
         },
     )
-
-    add_joint_default_pos = EventTerm(
-        func=mdp.randomize_joint_default_pos,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=[".*"]),
-            "pos_distribution_params": (-0.01, 0.01),
-            "operation": "add",
-        },
-    )
-
-    base_com = EventTerm(
-        func=mdp.randomize_rigid_body_com,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="torso_link"),
-            "com_range": {"x": (-0.075, 0.075), "y": (-0.1, 0.1), "z": (-0.1, 0.1)},
-        },
-    )
-    
-    # body_mass = EventTerm(
-    #     func=mdp.randomize_rigid_body_mass,
-    #     mode="startup",
-    #     params={
-    #         "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-    #         "mass_distribution_params": (0.8, 1.2),
-    #         "operation": "scale",
-    #     },
-    # )
     
     # random_joint_friction = EventTerm(
     #     func=mdp.randomize_joint_parameters,
@@ -376,11 +332,11 @@ class MultiTracking_EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    # motion_global_anchor_pos = RewTerm(
-    #     func=mdp.motion_global_anchor_position_error_exp,
-    #     weight=0.5,
-    #     params={"command_name": "motion", "std": 0.3},
-    # )
+    motion_global_anchor_vel = RewTerm(
+        func=mdp.motion_global_anchor_velocity_error_exp,
+        weight=0.5,
+        params={"command_name": "motion", "std": 1.0},
+    )
     motion_global_anchor_ori = RewTerm(
         func=mdp.motion_global_anchor_orientation_error_exp,
         weight=0.5,
@@ -463,7 +419,7 @@ class CurriculumCfg:
         params={
             "reward_term_name": "motion_global_anchor_ori",
             "max_ratio": 0.9,
-            "delta_ratio": 5e-3,
+            "delta_ratio": 5e-2,
             "threshold": 0.9,
         }
     )
@@ -488,7 +444,6 @@ class TrackingEnvCfg(ManagerBasedRLEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
 
     def __post_init__(self):
         """Post initialization."""
@@ -508,11 +463,12 @@ class TrackingEnvCfg(ManagerBasedRLEnvCfg):
 @configclass
 class MultiTracking_TrackingEnvCfg(TrackingEnvCfg):
     """Configuration for the locomotion multi-motion-tracking environment."""
+    
+    curriculum: CurriculumCfg = CurriculumCfg()
+    
     def __post_init__(self):
         super().__post_init__()
         self.commands: MultiTracking_CommandsCfg = MultiTracking_CommandsCfg()
-        self.events: MultiTracking_EventCfg = MultiTracking_EventCfg()
-    
     
 @configclass
 class GAEMimic_TrackingEnvCfg(MultiTracking_TrackingEnvCfg):
