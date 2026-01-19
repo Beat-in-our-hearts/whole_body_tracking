@@ -103,3 +103,22 @@ class GAEMimic_G1FlatPPORunnerCfg_V2(GAEMimic_G1FlatPPORunnerCfg):
     def __post_init__(self):
         super().__post_init__()
         self.policy.actor_hidden_dims = [512, 256, 128]
+
+@configclass
+class Ablation_GAEMimic_Small_G1FlatPPORunnerCfg(GAEMimic_G1FlatPPORunnerCfg_V2):
+    max_iterations = 50_000
+    
+@configclass
+class Ablation_GAEMimic_Large_G1FlatPPORunnerCfg(GAEMimic_G1FlatPPORunnerCfg_V2):
+    max_iterations = 50_000
+    def __post_init__(self):
+        super().__post_init__()
+        self.policy.robot_encoder_hidden_dims = [1024, 512, 256]
+        self.policy.human_encoder_hidden_dims = [1024, 512, 256]
+        self.policy.keypoints_encoder_hidden_dims = [1024, 512, 256]
+        self.policy.robot_decoder_hidden_dims = [256, 512, 1024]
+        self.policy.human_decoder_hidden_dims = [256, 512, 1024]
+        self.policy.keypoints_decoder_hidden_dims = [256, 512, 1024]
+        
+        self.policy.actor_hidden_dims = [1024, 512, 256]
+        self.policy.critic_hidden_dims = [1024, 512, 256]

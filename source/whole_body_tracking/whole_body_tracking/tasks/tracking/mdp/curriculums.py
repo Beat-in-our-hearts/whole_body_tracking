@@ -15,13 +15,14 @@ def adaptive_sampling_ratio(
     max_ratio: float = 0.9,
     delta_ratio: float = 2e-3,
     threshold: float = 0.9,
+    episode_num: int = 1,
 ) -> torch.Tensor:
     # use episode alive length to adjust the sampling ratio between uniform and adaptive sampling
     command_term = env.command_manager.get_term("motion")
     
     reward_term = env.reward_manager.get_term_cfg(reward_term_name)
     reward = torch.mean(env.reward_manager._episode_sums[reward_term_name][env_ids]) / env.max_episode_length_s
-    if env.common_step_counter % env.max_episode_length == 0:
+    if env.common_step_counter % (env.max_episode_length * episode_num) == 0:
         if reward > reward_term.weight * threshold:
             command_term.cfg.adaptive_uniform_ratio = min(
                 max_ratio, command_term.cfg.adaptive_uniform_ratio + delta_ratio

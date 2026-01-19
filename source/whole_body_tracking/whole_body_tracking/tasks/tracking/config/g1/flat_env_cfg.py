@@ -87,8 +87,8 @@ class GAEMimic_G1FlatEnvCfg(GAEMimic_TrackingEnvCfg):
         self.commands.motion.splits = ["train", "train", ]
         
         self.commands.motion.adaptive_uniform_ratio = 0.0
-        self.commands.motion.adaptive_cap = 5
-        self.commands.motion.adaptive_alpha = 1e-3
+        self.commands.motion.adaptive_cap = 20
+        self.commands.motion.adaptive_alpha = 2e-4
         
         self.commands.motion.anchor_body_name = "pelvis"
         self.commands.motion.body_names = [
@@ -107,6 +107,14 @@ class GAEMimic_G1FlatEnvCfg(GAEMimic_TrackingEnvCfg):
             "right_elbow_link",
             "right_wrist_yaw_link",
         ]
+        
+@configclass
+class Ablation_GAEMimic_G1FlatEnvCfg(GAEMimic_G1FlatEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        self.commands.motion.dataset_dirs = [os.path.join(EXTEMDED_DATASETS_DIR, "100style_dataset")]
+        self.commands.motion.splits = ["train"]
+        self.commands.motion.adaptive_uniform_ratio = 0.8
         
 @configclass
 class Play_GAEMimic_G1FlatEnvCfg(GAEMimic_G1FlatEnvCfg):
@@ -146,8 +154,8 @@ class GAEMimic_SingleFinetune_G1FlatEnvCfg(GAEMimic_TrackingEnvCfg):
         self.commands.motion.splits = ["train", ]
         
         self.commands.motion.adaptive_uniform_ratio = 0.0
-        self.commands.motion.adaptive_cap = 5
-        self.commands.motion.adaptive_alpha = 1e-3
+        self.commands.motion.adaptive_cap = 20
+        self.commands.motion.adaptive_alpha = 5e-4
         self.curriculum.adaptive_sampling_ratio.params["delta_ratio"] = 5e-2
         
         self.commands.motion.anchor_body_name = "pelvis"

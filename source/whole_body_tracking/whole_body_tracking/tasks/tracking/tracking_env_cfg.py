@@ -418,8 +418,8 @@ class CurriculumCfg:
         func=mdp.adaptive_sampling_ratio,
         params={
             "reward_term_name": "motion_global_anchor_ori",
-            "max_ratio": 0.9,
-            "delta_ratio": 5e-2,
+            "max_ratio": 0.8,
+            "delta_ratio": 1e-1,
             "threshold": 0.9,
         }
     )

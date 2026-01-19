@@ -76,3 +76,23 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:GAEMimic_Large_G1FlatPPORunnerCfg",
     },
 )
+
+gym.register(
+    id="Ablation-GAEMimic-Flat-G1-Large-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.Ablation_GAEMimic_G1FlatEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:Ablation_GAEMimic_Large_G1FlatPPORunnerCfg",
+    },
+)
+
+gym.register(
+    id="Ablation-GAEMimic-Flat-G1-Small-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": flat_env_cfg.Ablation_GAEMimic_G1FlatEnvCfg,
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:Ablation_GAEMimic_Small_G1FlatPPORunnerCfg",
+    },
+)
