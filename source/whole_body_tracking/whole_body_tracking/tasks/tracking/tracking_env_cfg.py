@@ -419,7 +419,6 @@ class CurriculumCfg:
         params={
             "reward_term_name": "motion_global_anchor_ori",
             "max_ratio": 0.8,
-            "delta_ratio": 1e-1,
             "threshold": 0.9,
         }
     )
